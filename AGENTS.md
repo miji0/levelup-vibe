@@ -2,7 +2,7 @@
 
 ## Project Context & Structure
 
-Only this guide exists; application scaffolding, tooling, tests, and Git history are absent. The planned personal website aggregates Korean corporate technical articles and industry insights, emailing a digest at 08:00 Asia/Seoul. Read originals through source links. Suppress empty digests and initial historical imports. Run collection and delivery server-side.
+Only this guide exists; application scaffolding, tooling, and tests are absent. The planned personal website aggregates Korean corporate technical articles and industry insights, emailing a digest at 08:00 Asia/Seoul. Read originals through source links. Suppress empty digests and initial historical imports. Run collection and delivery server-side.
 
 Proposed directories: `src/` for UI, collection, and delivery; `tests/` for tests and fixtures; `public/` for assets; `docs/` for decisions. Separate source-specific parsers from scheduling and email logic.
 
@@ -45,9 +45,14 @@ No commands are configured. During scaffolding, select one package manager, form
 
 Use saved RSS/HTML fixtures and mocked email. Cover duplicates, initial imports, missing dates, timezone boundaries, late discoveries, collection failures, and delivery retries. Coverage thresholds remain unset.
 
-## Commits & Pull Requests
+## Git Workflow
 
-No historical convention exists. Use focused imperative subjects, e.g. `Add blog collector`. PRs explain behavior, validation, configuration changes, relevant issues, and UI screenshots when applicable.
+- Use Conventional Commits, such as `feat: add blog collector`, `fix: prevent duplicate emails`, and `docs: update repository guidelines`.
+- Name branches `feature/<feature-name>` or `fix/<bug-name>`.
+- Both lint and tests must pass before creating a PR. If either check is not configured, configure it before opening a PR.
+- Never push directly to `main`; submit changes through a branch and PR.
+
+PRs explain behavior, validation, configuration changes, relevant issues, and UI screenshots when applicable.
 
 ## Security & Configuration
 
