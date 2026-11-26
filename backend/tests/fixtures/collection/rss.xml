@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>기업 블로그</title>
+<item><guid isPermaLink="false">tech-1</guid><title>기술 글</title><link>https://blog.example/Tech?b=2&amp;a=1</link><pubDate>Wed, 25 Nov 2026 16:00:00 GMT</pubDate><description>&lt;p&gt;소개 &lt;b&gt;문구&lt;/b&gt;&lt;/p&gt;&lt;script&gt;bad()&lt;/script&gt;</description><category>기술</category></item>
+<item><guid>https://blog.example/jobs</guid><title>채용</title></item>
+<item><title>행사 모집</title><link>/events</link><pubDate>not a date</pubDate></item>
+<item><title>일반 기업 소식</title><link>/news</link><pubDate>2026-11-25</pubDate></item>
+<item><title>홍보</title><link>/promotion</link></item>
+<item><guid isPermaLink="false">recoverable</guid><link>/broken-title</link></item>
+</channel></rss>

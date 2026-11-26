@@ -2,9 +2,9 @@
 
 ## Project Context & Structure
 
-Only this guide exists; application scaffolding, tooling, and tests are absent. The planned personal website aggregates Korean corporate technical articles and industry insights, emailing a digest at 08:00 Asia/Seoul. Read originals through source links. Suppress empty digests and initial historical imports. Run collection and delivery server-side.
+LevelUp is an owner-only personal website. The first implemented slice provides a Next.js shell, Python FastAPI Google login, and fixed seven-day PostgreSQL sessions. Collection and Gmail delivery remain planned; follow PRD.md and the current approval records in waterfall/08-검토 before implementing them.
 
-Proposed directories: `src/` for UI, collection, and delivery; `tests/` for tests and fixtures; `public/` for assets; `docs/` for decisions. Separate source-specific parsers from scheduling and email logic.
+Use `apps/web/` for TypeScript UI, `backend/src/levelup/` for Python API and services, `backend/tests/` for backend tests, `db/migrations/` for immutable SQL migrations, and `tests/e2e/` for browser flows. `waterfall/` contains design and review records.
 
 ## Behavioral Guidelines
 
@@ -41,9 +41,16 @@ For validation, test invalid inputs; for bugs, reproduce with a failing test; fo
 
 ## Tooling, Style & Testing
 
-No commands are configured. During scaffolding, select one package manager, formatter, linter, and test framework. Document verified install, development, build, lint, and test commands in `README.md`; commit the lockfile. Tool configuration defines indentation; follow language conventions for names.
+Use Python 3.12 with uv and Node.js 24 with pnpm. README.md contains the executable setup and check commands; backend/pyproject.toml and apps/web/package.json define tools. Preserve both lockfiles. Run PostgreSQL tests with TEST_DATABASE_URL; skipped DB tests do not constitute a full pass. Tool configuration defines indentation; follow language conventions for names.
 
 Use saved RSS/HTML fixtures and mocked email. Cover duplicates, initial imports, missing dates, timezone boundaries, late discoveries, collection failures, and delivery retries. Coverage thresholds remain unset.
+
+## Screen Completion
+
+- For every implemented or changed screen, complete this sequence before marking its design done: compare against the current Figma mockup → fix differences → verify dark/light at desktop 1280px and mobile 390px.
+- Check layout, spacing, typography, icons, controls, and applicable interaction/error states. Record the Figma reference, screenshots, remaining differences, and verification results in the implementation handoff and UX review.
+- Automated functional tests alone do not establish design completion. If Figma comparison or any required theme/viewport check is unavailable, report the screen as design-unverified. Current foundation screens still require Figma comparison.
+- Compare Figma read-only; correct application code. Obtain explicit authorization before editing the mockup.
 
 ## Git Workflow
 
@@ -54,6 +61,12 @@ Use saved RSS/HTML fixtures and mocked email. Cover duplicates, initial imports,
 - Never push directly to `main`; submit changes through a branch and PR.
 
 PRs explain behavior, validation, configuration changes, relevant issues, and UI screenshots when applicable.
+
+### Commit Milestones
+
+- Group commits by the approved implementation plan's major flows: foundation/authentication, subscriptions/collection, reading lists, briefing/Gmail, reports/design completion, and release preparation. Keep supporting code, tests, and relevant records together.
+- When a coherent milestone and its required checks are complete, notify the user that it is a commit point and summarize scope, results, and remaining limits. For UI changes, include the screen completion checks above; do not present design-unverified screens as finished.
+- Propose commit messages under the approval rules below. A request for commit-point notifications is not authorization to commit or push.
 
 ### Branch & Commit Approval
 

@@ -1,0 +1,50 @@
+name: Foundation checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: levelup
+          POSTGRES_PASSWORD: levelup
+          POSTGRES_DB: levelup_test
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://levelup:levelup@127.0.0.1:5432/levelup_test
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "12.18.0"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.8"
+          python-version: "3.12"
+      - name: Install PostgreSQL 17 backup/restore client
+        run: |
+          # ubuntu-latest 기본 저장소에는 postgresql-client-17이 없어 PGDG 저장소를 먼저 추가한다.
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+      - run: uv sync --project backend --frozen
+      - run: backend/.venv/bin/ruff check backend
+      - run: backend/.venv/bin/ruff format --check backend
+      - run: backend/.venv/bin/mypy --config-file backend/pyproject.toml backend/src
+      - run: backend/.venv/bin/pytest backend/tests -q
+      - run: pnpm --dir apps/web install --frozen-lockfile
+      - run: pnpm --dir apps/web lint
+      - run: pnpm --dir apps/web typecheck
+      - run: pnpm --dir apps/web test
+      - run: pnpm --dir apps/web build
+      - run: pnpm --dir apps/web exec playwright install --with-deps chromium webkit
+      - run: pnpm --dir apps/web test:e2e --workers=1
