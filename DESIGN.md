@@ -1,3 +1,8 @@
+## 디자인 참고
+
+- [LevelUp Figma 화면 시안](https://www.figma.com/design/GhMsLi8oyVJDNNQkZ4sUrf/%EB%B0%94%EC%9D%B4%EB%B8%8C%EC%BD%94%EB%94%A9_levelup?node-id=0-1)
+- 화면 구성과 시각적 표현은 Figma를 참고하며, 동작과 정책은 PRD 및 설계 문서를 따른다.
+
 ## Overview
 
 daily.dev의 Feeds 문서 페이지는 **고정 탐색 영역, 차분한 다크 캔버스, 보라색 상태 강조**를 중심으로 구성된다. 왼쪽 사이드바가 탐색을 담당하고, 둥근 메인 패널 안에서 제목·설명·표·제품 스크린샷이 이어진다. 넓은 화면에는 오른쪽 목차가 추가되어 긴 글에서도 현재 위치를 찾기 쉽다.

@@ -49,10 +49,21 @@ Use saved RSS/HTML fixtures and mocked email. Cover duplicates, initial imports,
 
 - Use Conventional Commits, such as `feat: add blog collector`, `fix: prevent duplicate emails`, and `docs: update repository guidelines`.
 - Name branches `feature/<feature-name>` or `fix/<bug-name>`.
-- Both lint and tests must pass before creating a PR. If either check is not configured, configure it before opening a PR.
+- For PRs that change application code, dependencies, or build, deployment, or CI configuration, relevant lint and tests must pass before PR creation. Configure missing checks first.
+- For documentation-only PRs, run `git diff --check <base>...HEAD`, verify changed relative links and referenced paths, and review Markdown structure. Report results and any unavailable checks in the PR; application lint and tests are not required, and missing application tooling does not block PR creation.
 - Never push directly to `main`; submit changes through a branch and PR.
 
 PRs explain behavior, validation, configuration changes, relevant issues, and UI screenshots when applicable.
+
+### Branch & Commit Approval
+
+- Before creating a branch, propose 2–3 names with a recommendation and rationale. Wait for the user's selection or approval before creating it.
+- Before committing, propose 2–3 commit messages based on the actual changes, with a recommendation and rationale. Wait for the user's selection or approval before committing.
+- Use a branch name or commit message explicitly supplied by the user without asking again.
+- If the user explicitly delegates candidate selection, generate candidates, choose the one closest to the existing Git style, briefly state the choice and reason, and proceed without another confirmation.
+- Infer style primarily from recent branch names and commit history in this repository. When evidence is insufficient, use this guide's naming conventions.
+- Explicit Git rules in this guide take precedence over historical style.
+- Automatic approval of tool execution does not authorize automatic candidate selection; that requires explicit user delegation.
 
 ## Security & Configuration
 
