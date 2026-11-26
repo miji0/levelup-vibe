@@ -26,8 +26,10 @@ jobs:
       - run: uv sync --project backend --frozen
       - name: Install matching PostgreSQL 17 client
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client-17
+          # ubuntu-latest 기본 저장소에는 postgresql-client-17이 없어 PGDG 저장소를 먼저 추가한다.
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
           echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
       - name: Create authenticated encrypted dump and verify archive
         run: |
