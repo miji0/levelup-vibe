@@ -108,7 +108,7 @@ daily.dev의 Feeds 문서 페이지는 **고정 탐색 영역, 차분한 다크 
 
 ### Note on Font Substitutes
 
-**LevelUp 적용 제안:** 영문 UI는 Plus Jakarta Sans, 한국어는 `Pretendard`를 뒤에 둔 폰트 스택을 사용한다. Pretendard는 원본에서 확인된 서체가 아니며 프로젝트에 아직 설치되지 않았다. 한국어 긴 제목은 음수 자간을 완화하고 실제 줄바꿈을 확인한다.
+**LevelUp 적용 확정(2026-11-26):** 한국어는 Pretendard로 확정한다. 워드마크·영문 강조·숫자·URL은 Plus Jakarta Sans를 사용한다. system-ui는 대체 글꼴이며 실제 설치·로딩·줄바꿈·굵기 검증은 구현 단계에서 수행한다. Pretendard는 원본에서 측정된 서체가 아닌 프로젝트 선택이다. Figma의 Noto Sans KR 대체 표시는 후속 목업에서 교체한다. 한국어 긴 제목의 자간·줄바꿈은 실제 렌더링으로 확인한다.
 
 ## Layout
 

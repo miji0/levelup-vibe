@@ -1,896 +1,338 @@
-# 시스템 아키텍처 설계서 (SAD - System Architecture Document)
-
-> 회원·게시글 서비스, 기술 선택과 수치는 작성 예시입니다. 프로젝트에서 승인한 요구사항·정책에 맞춰 선택하고 관련 RTM 행에 근거를 연결합니다.
+# 시스템 아키텍처 설계서 (SAD)
 
 | 항목 | 내용 |
-|------|------|
-| **프로젝트명** | [프로젝트명] |
-| **문서 버전** | [v1.0] |
-| **작성일** | [YYYY-MM-DD] |
-| **작성자** | [작성자명 / 역할] |
-| **승인자** | [승인자명 / 역할] |
-| **문서 상태** | [초안 / 검토중 / 승인됨] |
+|---|---|
+| 프로젝트 | LevelUp — 개인용 웹사이트 / 모닝 테크 |
+| 문서 ID | SAD-LEVELUP-v0.10 |
+| 작성일·버전 | 2026-11-26 / v0.10 |
+| 작성자 | Codex — 사용자 요청과 저장소 자료 기반 |
+| 상태 | 검토용 설계 초안. G0·G1·G2 승인 기록 없음 |
+| 검토·승인 담당 | 사이트 소유자. 고정 출시일 없이 실제 검토 수행 시 일자 기록 |
+| 대상 | 첫 릴리스의 P1·P2 전체. 구현·연동·테스트 완료를 의미하지 않음 |
 
----
+## 변경 이력
+
+| 버전 | 날짜 | 변경 내용 | 승인 |
+|---|---|---|---|
+| v0.6 | 2026-11-25 | CR-MIN-001: Python 호스트 통합·당일 자동 재발송 제외·단일 호출 결과 통합·템플릿 적용 범위 분리 | 변경 범위 사용자 확인·전체 문서 미승인 |
+| v0.7 | 2026-11-26 | 확정 PRD v0.28 대조·과거 문구/참조 정정, Mac Chrome + iPhone Safari·모든 글 목록 최신순 확정, 실행 검증과 분리 | PRD·기기 범위 사용자 확정 / 개별 단계 승인 전 |
+| v0.8 | 2026-11-26 | 00~04 미결·권장안 통합, 확정/설계/환경/검증/후속 보류 구분·잔여 문구/참조 정정. 권장안 미채택·실행 미검증 | 정정 요청 반영 / 개별 문서 미승인 |
+| v0.9 | 2026-11-26 | G2 검토 결정 반영(PRD v0.29): 한 Vercel 프로젝트·같은 origin, Schedules 무료 15분 시작 지연 수용, GitHub Actions 주간 백업, OAuth 앱 프로덕션 게시(검증 미신청), ADR-001·004 승인 | 소유자 결정 / G2 전체 승인 전 |
+| v0.10 | 2026-11-26 | 사용자 채택: Services 한 프로젝트·DB 저장 세션(auth_sessions 추가, 총 14개)·외부 클라우드 자동 백업. 실제 설정/검증은 미완료 | 세 가지 설계 사용자 채택 / 전체 단계 미승인 |
+
+## 참고 문서와 적용 기준
+
+- [작성 가이드](../AGENTS.md), [PRD v0.30](../../PRD.md), [디자인 분석](../../DESIGN.md)
+- [서비스 기획서 v0.12](../00-기획/서비스기획서.md), [비즈니스 정책서 v0.11](../00-기획/비즈니스정책서.md)
+- [SRS v0.12](../01-요구사항분석/요구사항명세서-SRS.md), [유스케이스 v0.10](../01-요구사항분석/유스케이스명세서.md), [RTM v0.12](../01-요구사항분석/요구사항추적매트릭스-RTM.md)
+
+요구사항의 FR/NFR·UC·SCR·BP 식별자를 유지한다. PRD v0.30의 제품 정책과 ISSUE-001의 지원 조합은 확정이며 재결정하지 않는다. DEC-001·002·003·006·007의 남은 구현 결정/환경 설정과 실제 검증, DEC-005·008·ISSUE-001의 실행 검증, DEC-004의 후속 보류를 구분한다. 통합 상태·권장안은 [서비스 기획서 7.4](../00-기획/서비스기획서.md#74-prd-확정-후-순차-검토-2026-11-26)를 따른다. 세 가지 채택 항목은 통합 표의 확정 기록을 따르고, 나머지 권장안 기재는 채택·개별 단계 승인·테스트 통과를 뜻하지 않는다.
 
 ## 1. 문서 개요
 
-### 1.1 목적
+### 1.1 목적·범위
 
-본 문서는 [프로젝트명]의 시스템 아키텍처를 정의하고, 주요 기술적 결정 사항과 설계 원칙을 기술한다. 개발팀, 인프라팀, QA팀 등 프로젝트 이해관계자가 시스템의 전체 구조를 이해하고 일관된 방향으로 개발을 수행할 수 있도록 한다.
+소유자 한 명이 구독 출처를 관리하고, 모든 유형의 새 글을 서버에서 수집하여 다음 아침 이메일로 확인하는 시스템을 설계한다. 공개 문서의 요약 요청문을 준비하는 리포트 분석은 항상 접근 가능한 독립 섹션이다. 향후 섹션을 추가할 수 있으며 미설계 두 기능은 홈 준비 카드로만 미리 표시한다. 실제 기능·빈 실행 화면·범용 플러그인 플랫폼은 추가하지 않는다.
 
-### 1.2 범위
+### 1.2 설계의 전제
 
-- 시스템 전체 아키텍처 구조 및 구성 요소
-- 기술 스택 선정 및 근거
-- 배포 아키텍처 및 인프라 구성
-- 비기능 요구사항에 대한 아키텍처 대응 전략
-- 시스템 간 통합 패턴
-
-### 1.3 참조 문서
-
-| 문서명 | 버전 | 비고 |
-|--------|------|------|
-| 요구사항 정의서 (SRS) | [v1.0] | 기능/비기능 요구사항 |
-| 프로젝트 계획서 | [v1.0] | 일정 및 리소스 |
-| [추가 참조 문서] | [버전] | [비고] |
-
-### 1.4 변경 이력
-
-| 버전 | 날짜 | 작성자 | 변경 내용 |
-|------|------|--------|-----------|
-| v0.1 | [YYYY-MM-DD] | [작성자] | 초안 작성 |
-| v0.2 | [YYYY-MM-DD] | [작성자] | [변경 사항 요약] |
-| v1.0 | [YYYY-MM-DD] | [작성자] | 최종 승인 |
-
-### 1.5 용어 정의
-
-| 용어 | 정의 |
-|------|------|
-| [용어1] | [정의] |
-| [용어2] | [정의] |
-| [용어3] | [정의] |
-
----
+- 저장소에는 애플리케이션·DB·실행 환경이 아직 없다. 아래 기술과 디렉터리는 구축 제안이다.
+- TypeScript 웹과 Python 업무 코드는 같은 저장소에서 관리하고 Python API와 정기 실행부는 같은 Python 서비스를 사용한다. 정기 실행은 Vercel Schedules가 시작하는 유한 작업이며 상시 worker 프로세스를 요구하지 않는다. 브라우저 종료와 무관하게 동작한다.
+- 외부 출처가 공개 피드·지원 목록에 노출하는 범위만 수집한다. 전 사이트의 모든 문서를 찾는 검색 엔진은 아니다.
+- 리포트 URL은 서버 수집 경로에 전달하지 않는다. 내부 AI 호출·PDF 처리·결과 저장은 제외한다.
 
 ## 2. 아키텍처 개요
 
-### 2.1 아키텍처 스타일 선택
-
-#### 선택된 아키텍처 스타일
-
-**[Layered Architecture / Microservices / Event-Driven / Hexagonal / 기타]**
-
-#### 후보 아키텍처 스타일 비교
-
-| 평가 항목 | Layered | Microservices | Event-Driven | Hexagonal |
-|-----------|---------|---------------|--------------|-----------|
-| 구현 복잡도 | 낮음 | 높음 | 중간 | 중간 |
-| 확장성 | 중간 | 높음 | 높음 | 중간 |
-| 유지보수성 | 중간 | 높음 | 중간 | 높음 |
-| 팀 역량 적합성 | [평가] | [평가] | [평가] | [평가] |
-| 배포 유연성 | 낮음 | 높음 | 높음 | 중간 |
-| 운영 복잡도 | 낮음 | 높음 | 중간 | 낮음 |
-| **종합 점수** | [점수] | [점수] | [점수] | [점수] |
-
-#### 선택 근거
-
-- [근거 1: 예) 팀 규모와 역량을 고려했을 때 적합]
-- [근거 2: 예) 비기능 요구사항(확장성, 가용성)을 충족]
-- [근거 3: 예) 프로젝트 일정 내 구현 가능]
-- [근거 4: 예) 향후 확장 계획에 부합]
-
-### 2.2 아키텍처 원칙
-
-| 원칙 | 설명 | 적용 방법 |
-|------|------|-----------|
-| 관심사 분리 (Separation of Concerns) | 각 계층/모듈은 단일 책임을 가짐 | [구체적 적용 방법] |
-| 느슨한 결합 (Loose Coupling) | 모듈 간 의존성 최소화 | [구체적 적용 방법] |
-| 높은 응집도 (High Cohesion) | 관련 기능을 하나의 모듈로 그룹화 | [구체적 적용 방법] |
-| DRY (Don't Repeat Yourself) | 코드 및 로직 중복 방지 | [구체적 적용 방법] |
-| SOLID 원칙 | 객체지향 설계 5원칙 준수 | [구체적 적용 방법] |
-| [추가 원칙] | [설명] | [적용 방법] |
-
-### 2.3 시스템 컨텍스트 다이어그램
-
-시스템과 외부 시스템/액터 간의 관계를 나타낸다.
+### 2.1 시스템 경계
 
 ```mermaid
-flowchart TB
-    subgraph 외부 사용자
-        U1[일반 사용자]
-        U2[관리자]
+flowchart LR
+    Owner[소유자 브라우저] --> Route[Vercel Services 공통 origin]
+    subgraph Project[단일 Vercel 프로젝트]
+        Route -->|화면 경로| Web[Next.js · TypeScript]
+        Route -->|API 경로| API[Python FastAPI]
+        Web -->|서버 측 고정 API 호출| API
+        Worker[Python 유한 작업 실행부]
     end
-
-    subgraph 외부 시스템
-        EXT1[외부 인증 시스템<br/>OAuth Provider]
-        EXT2[이메일 서비스<br/>SMTP / SendGrid]
-        EXT3[결제 시스템<br/>PG사 API]
-        EXT4[외부 API<br/>서드파티 연동]
-        EXT5[모니터링 시스템<br/>DataDog / Grafana]
-    end
-
-    SYS["[프로젝트명]<br/>시스템"]
-
-    U1 -->|웹/모바일 접속| SYS
-    U2 -->|관리 콘솔 접속| SYS
-    SYS -->|OAuth 2.0 인증| EXT1
-    SYS -->|알림 메일 발송| EXT2
-    SYS -->|결제 처리| EXT3
-    SYS -->|데이터 연동| EXT4
-    SYS -->|메트릭/로그 전송| EXT5
-
-    style SYS fill:#4A90D9,color:#fff,stroke:#2C5F8A
+    OAuth[사이트 OAuth · Google 확정] --> API
+    GmailOAuth[Google OAuth · Gmail 발송 동의] --> API
+    API --> DB[(Neon Free PostgreSQL)]
+    API -->|명시적 연결 확인| Sources[공개 RSS · Atom · 지원 목록]
+    Schedule[Vercel Schedules] --> Worker
+    Worker --> DB
+    Worker --> Sources
+    Worker --> Mail[Gmail API]
+    Mail --> Inbox[소유자 받은편지함]
+    Owner --> AI[ChatGPT · Claude 공식 홈]
 ```
 
-### 2.4 컨테이너 다이어그램
+마지막 연결은 사용자가 별도 버튼으로 여는 외부 탭이다. LevelUp 서버와 AI 서비스 사이의 통신은 없다. 사이트 인증은 Google로 확정했으며 메일은 사용자 확인에 따라 Gmail을 사용한다. OAuth 동의·실제 계정·지속 운영 설정은 미결이다.
 
-시스템 내부의 주요 컨테이너(어플리케이션, 데이터 저장소 등)를 나타낸다.
+### 2.2 모듈과 책임
 
-```mermaid
-flowchart TB
-    subgraph 클라이언트
-        WEB[Web Application<br/>React / Vue / Angular<br/>SPA]
-        MOBILE[Mobile Application<br/>React Native / Flutter]
-    end
+| ID | 모듈 | 책임·공개 접점 | 접근 가능한 데이터 |
+|---|---|---|---|
+| CMP-01 | 공통 셸·섹션 등록 | `id, label, path, enabled, availability`로 활성 메뉴·홈 준비 카드 구성, 공통 UI | 소유자 설정·활성 섹션, 섹션이 제공한 요약 |
+| CMP-02 | 인증·설정 | 소유자 검사, 동일 Google 계정의 읽기 전용 이메일·알림 중지 관리 | owner_settings, auth_sessions, gmail_connections |
+| CMP-03 | 구독·수집 | URL 확인·등록·토글·삭제, 피드 발견·파싱·중복 처리 | sources, subscription_epochs, articles, article_keys |
+| CMP-04 | 글 탐색 | 오늘/전체/저장 목록, 제목 검색·읽음·저장·숨김 | articles, article_states, digests, digest_items |
+| CMP-05 | 브리핑·메일 | 날짜별 전체 대상, 메일 최대 20개, 발송·확인 기록 | digests, digest_items, deliveries |
+| CMP-06 | 리포트 분석 | 브라우저에서 URL 문법 검사·요청문 편집·복사·외부 열기 | 메모리의 URL·요청문, 마지막 서비스 선택만 로컬 저장 |
+| CMP-07 | 작업 실행·관측 | 시간 슬롯 등록, 작업 임대·재개, 상태·오류 기록 | job_runs와 각 기능의 서비스 인터페이스 |
 
-    subgraph 시스템 경계
-        GW[API Gateway<br/>Kong / AWS API Gateway<br/>라우팅, 인증, Rate Limiting]
+registry의 availability는 available/planned이고 planned 항목은 path=null·enabled=false다. 메뉴는 available+enabled만, 홈은 available+enabled 및 지정 planned 항목을 표시한다. 준비 카드 이름/설명은 정적 metadata이며 새 업무 서비스·DB·작업을 만들지 않는다. 사용자 비활성 available 기능은 planned로 바꾸지 않는다.
 
-        subgraph 백엔드 서비스
-            API[API Server<br/>Node.js / Spring Boot / Django<br/>비즈니스 로직]
-            AUTH[Auth Service<br/>인증/인가 처리<br/>JWT 발급]
-            NOTI[Notification Service<br/>알림 처리<br/>이메일, 푸시]
-            FILE[File Service<br/>파일 업로드/다운로드<br/>리사이징]
-        end
+공통 셸은 파서를 직접 호출하지 않는다. 리포트 모듈은 글 DB를 조회하지 않으며 기술블로그에서 URL만 전달받는다. 새 섹션은 해당 모듈과 정적 등록 항목을 추가한다. 새로운 섹션의 작업이 필요하면 그 작업만 별도로 등록한다.
 
-        subgraph 데이터 저장소
-            RDB[(Primary DB<br/>PostgreSQL / MySQL<br/>트랜잭션 데이터)]
-            CACHE[(Cache<br/>Redis<br/>세션, 캐시)]
-            SEARCH[(Search Engine<br/>Elasticsearch<br/>검색 인덱스)]
-            STORAGE[(Object Storage<br/>S3 / MinIO<br/>파일 저장)]
-        end
+### 2.3 코드 구성 제안
 
-        MQ[Message Queue<br/>RabbitMQ / Kafka<br/>비동기 처리]
-    end
-
-    WEB -->|HTTPS / REST| GW
-    MOBILE -->|HTTPS / REST| GW
-    GW --> API
-    GW --> AUTH
-    API --> RDB
-    API --> CACHE
-    API --> SEARCH
-    API --> MQ
-    AUTH --> RDB
-    AUTH --> CACHE
-    MQ --> NOTI
-    MQ --> FILE
-    FILE --> STORAGE
-
-    style GW fill:#E8A838,color:#fff
-    style API fill:#4A90D9,color:#fff
-    style AUTH fill:#4A90D9,color:#fff
-    style NOTI fill:#4A90D9,color:#fff
-    style FILE fill:#4A90D9,color:#fff
-    style RDB fill:#5BA85B,color:#fff
-    style CACHE fill:#D94A4A,color:#fff
+```text
+apps/web/src/              # TypeScript 화면·공통 UI·API proxy
+backend/src/levelup/api/   # Python FastAPI·schema·응답 변환
+backend/src/levelup/core/  # 인증·설정·섹션 등록
+backend/src/levelup/modules/tech/  # 구독·수집·목록·브리핑
+backend/src/levelup/infra/ # DB·안전 HTTP·Gmail·암호화
+backend/src/levelup/worker/# Python 스케줄·영속 작업 실행
+db/migrations/            # SQL·제약 변경
 ```
 
-### 2.5 컴포넌트 다이어그램
-
-API Server 내부의 주요 모듈/컴포넌트 구성을 나타낸다.
-
-```mermaid
-flowchart TB
-    subgraph API Server
-        subgraph Presentation Layer
-            CTRL[Controllers<br/>요청/응답 처리]
-            MW[Middleware<br/>인증, 로깅, 에러 처리]
-            VALID[Validators<br/>입력 검증]
-        end
-
-        subgraph Application Layer
-            UC[Use Cases<br/>비즈니스 유스케이스]
-            DTO[DTOs<br/>데이터 전송 객체]
-            MAPPER[Mappers<br/>객체 변환]
-        end
-
-        subgraph Domain Layer
-            ENT[Entities<br/>도메인 엔티티]
-            VO[Value Objects<br/>값 객체]
-            SVC[Domain Services<br/>도메인 로직]
-            REPO_IF[Repository Interfaces<br/>저장소 인터페이스]
-        end
-
-        subgraph Infrastructure Layer
-            REPO[Repositories<br/>데이터 접근 구현]
-            EXT_CL[External Clients<br/>외부 API 연동]
-            MSG[Message Publishers<br/>메시지 발행]
-            CACHE_CL[Cache Client<br/>캐시 접근]
-        end
-    end
-
-    CTRL --> MW --> VALID
-    CTRL --> UC
-    UC --> SVC
-    UC --> REPO_IF
-    SVC --> ENT
-    SVC --> VO
-    REPO_IF -.->|구현| REPO
-    UC --> EXT_CL
-    UC --> MSG
-    UC --> CACHE_CL
-
-    style CTRL fill:#E8A838,color:#fff
-    style UC fill:#4A90D9,color:#fff
-    style ENT fill:#5BA85B,color:#fff
-    style REPO fill:#8B5CF6,color:#fff
-```
-
----
+작은 모듈 내부를 불필요한 계층으로 나누지 않는다. Python API와 worker는 같은 도메인 서비스를 호출한다. TypeScript 웹/SSR는 고정 Python API를 호출하며 DB나 Python 업무 정책을 중복 구현하지 않는다. 공통 섹션 등록 정보는 Python API가 제공하고 홈/메뉴가 같은 응답을 사용한다.
 
 ## 3. 기술 스택 선정
 
-### 3.1 선정 기준 매트릭스
+웹 프레임워크 Next.js·Python API 프레임워크 FastAPI·DB PostgreSQL과 Google 로그인·동일 계정 Gmail 연결은 사용자 확정 사항이다. 나머지 구체 스택·구현 방식은 **ADR-001~004의 채택 제안**이다. Gmail 사용과 같은 계정 발신·수신은 사용자 확인 사항이며, 실제 계정 설정·무료 운영 검증·배포 완료 사실로 해석하지 않는다.
 
-각 기술은 아래 기준으로 평가한다 (1~5점 척도).
+| 영역 | 제안 | 선정 이유·대안 | 확정 조건 |
+|---|---|---|---|
+| 웹 | Next.js/React + TypeScript · Vercel | Next.js·TypeScript·Vercel 사용자 확정. API proxy·화면·로컬 reports 담당 | Next.js/React 버전·웹 프로젝트 설정 DEC-001 |
+| 업무 서버 | Python + FastAPI · Vercel | FastAPI·Vercel API 배포 확정. 공개 경로/업무 정책 유지 | 한 Vercel 프로젝트·같은 origin 확정. Python/FastAPI 버전·라우팅·cookie·무료 한도 검증 |
+| 데이터 | Neon Free PostgreSQL + SQL 마이그레이션 | DB·호스팅 사용자 확정. 관계·고유 제약·트랜잭션·작업 잠금 유지 | DB 버전·프로젝트/리전·직접 연결/드라이버·한도/백업 검증 DEC-001·007 |
+| 작업 | Python 수집·메일 실행부 + DB 작업 큐 | API와 Python 코드 공유, claim·복구 유지. Vercel Schedules 채택 | 무료 15분 시작 지연 수용 확정. 실행 시간/자원·직접 DB 연결 DEC-001·002 |
+| 인증 | Google OIDC·DB auth_sessions 확정, OAuth Authlib 제안 | 소유자 허용 목록·서버 권한 검사. Auth.js 의존 대체 | DB 저장·7일 고정·현재 세션 로그아웃 확정. OAuth 라이브러리·subject/앱 설정·실제 동작 검증 남음 |
+| 이메일 | Gmail API + Google OAuth 발송 권한 | 사용자 확인: 연결한 Gmail에서 같은 Gmail로 발신·수신. SMTP/앱 비밀번호 대신 최소 발송 권한 제안 | 실제 계정·Google 프로젝트/동의·지속 운영·계정 한도·사용량 DEC-002 |
+| UI | 의미 있는 HTML + 공통 CSS 토큰 | DESIGN 기준을 재사용, 거대한 컴포넌트 라이브러리 채택을 전제하지 않음 | DEC-008 테마·폰트 검토 |
+| 검증 | Python pytest/Ruff/mypy + 웹 Vitest/Playwright/ESLint 제안 | 두 언어의 정책·통합·브라우저 검증 | 실제 도구/명령·Mac Chrome + iPhone Safari 실제 검증 |
 
-| 평가 항목 | 가중치 | 설명 |
-|-----------|--------|------|
-| 성능 (Performance) | [20%] | 처리 속도, 동시 접속 처리 능력 |
-| 생태계 (Ecosystem) | [20%] | 라이브러리, 프레임워크, 도구 풍부도 |
-| 학습 곡선 (Learning Curve) | [15%] | 팀원들의 습득 용이성 |
-| 라이선스 (License) | [10%] | 상용 사용 가능 여부, 비용 |
-| 커뮤니티 (Community) | [15%] | 활성도, 문서 품질, 지원 |
-| 안정성 (Stability) | [10%] | 프로덕션 검증 수준, 버그 빈도 |
-| 팀 역량 (Team Fit) | [10%] | 현재 팀의 경험 및 숙련도 |
-
-### 3.2 프론트엔드 기술 선정
-
-#### 선정 결과
-
-| 영역 | 선정 기술 | 버전 | 선정 근거 |
-|------|-----------|------|-----------|
-| Framework | [React / Vue / Angular] | [버전] | [근거] |
-| 상태 관리 | [Redux / Zustand / Pinia] | [버전] | [근거] |
-| 스타일링 | [Tailwind CSS / styled-components / CSS Modules] | [버전] | [근거] |
-| 빌드 도구 | [Vite / Webpack / Turbopack] | [버전] | [근거] |
-| 테스트 | [Jest / Vitest / Cypress] | [버전] | [근거] |
-| HTTP 클라이언트 | [Axios / fetch / ky] | [버전] | [근거] |
-| 라우팅 | [React Router / Vue Router] | [버전] | [근거] |
-
-#### 평가 상세
-
-| 평가 항목 | [후보1] | [후보2] | [후보3] |
-|-----------|---------|---------|---------|
-| 성능 | [점수] | [점수] | [점수] |
-| 생태계 | [점수] | [점수] | [점수] |
-| 학습 곡선 | [점수] | [점수] | [점수] |
-| 라이선스 | [점수] | [점수] | [점수] |
-| 커뮤니티 | [점수] | [점수] | [점수] |
-| 안정성 | [점수] | [점수] | [점수] |
-| 팀 역량 | [점수] | [점수] | [점수] |
-| **가중 합계** | **[총점]** | **[총점]** | **[총점]** |
-
-### 3.3 백엔드 기술 선정
-
-#### 선정 결과
-
-| 영역 | 선정 기술 | 버전 | 선정 근거 |
-|------|-----------|------|-----------|
-| Language | [TypeScript / Java / Python / Go] | [버전] | [근거] |
-| Framework | [NestJS / Spring Boot / Django / Gin] | [버전] | [근거] |
-| ORM | [TypeORM / Prisma / JPA / SQLAlchemy] | [버전] | [근거] |
-| 인증 | [Passport.js / Spring Security / 자체 구현] | [버전] | [근거] |
-| 테스트 | [Jest / JUnit / pytest] | [버전] | [근거] |
-| API 문서화 | [Swagger / OpenAPI / Redoc] | [버전] | [근거] |
-| 로깅 | [Winston / Log4j / structlog] | [버전] | [근거] |
-
-#### 평가 상세
-
-| 평가 항목 | [후보1] | [후보2] | [후보3] |
-|-----------|---------|---------|---------|
-| 성능 | [점수] | [점수] | [점수] |
-| 생태계 | [점수] | [점수] | [점수] |
-| 학습 곡선 | [점수] | [점수] | [점수] |
-| 라이선스 | [점수] | [점수] | [점수] |
-| 커뮤니티 | [점수] | [점수] | [점수] |
-| 안정성 | [점수] | [점수] | [점수] |
-| 팀 역량 | [점수] | [점수] | [점수] |
-| **가중 합계** | **[총점]** | **[총점]** | **[총점]** |
-
-### 3.4 데이터베이스 기술 선정
-
-| 영역 | 선정 기술 | 버전 | 선정 근거 |
-|------|-----------|------|-----------|
-| Primary DB | [PostgreSQL / MySQL / MariaDB] | [버전] | [근거] |
-| Cache | [Redis / Memcached] | [버전] | [근거] |
-| Search Engine | [Elasticsearch / OpenSearch / Meilisearch] | [버전] | [근거 또는 N/A] |
-| Message Queue | [RabbitMQ / Apache Kafka / SQS] | [버전] | [근거 또는 N/A] |
-| Object Storage | [AWS S3 / MinIO / GCS] | [버전] | [근거] |
-
-### 3.5 인프라 기술 선정
-
-| 영역 | 선정 기술 | 버전 | 선정 근거 |
-|------|-----------|------|-----------|
-| 클라우드 | [AWS / GCP / Azure / 온프레미스] | - | [근거] |
-| 컨테이너 | [Docker / Podman] | [버전] | [근거] |
-| 오케스트레이션 | [Kubernetes / ECS / Docker Compose] | [버전] | [근거] |
-| CI/CD | [GitHub Actions / GitLab CI / Jenkins] | - | [근거] |
-| IaC | [Terraform / Pulumi / CloudFormation] | [버전] | [근거] |
-| 모니터링 | [Grafana + Prometheus / DataDog / CloudWatch] | - | [근거] |
-| 로그 관리 | [ELK Stack / Loki / CloudWatch Logs] | - | [근거] |
-
-### 3.6 대안 기술 및 불채택 사유
-
-| 영역 | 불채택 기술 | 불채택 사유 |
-|------|-------------|-------------|
-| 프론트엔드 | [기술명] | [사유: 예) 팀 경험 부족, 생태계 미성숙] |
-| 백엔드 | [기술명] | [사유] |
-| DB | [기술명] | [사유] |
-| 인프라 | [기술명] | [사유] |
-| [추가] | [기술명] | [사유] |
-
----
+Next.js 채택은 확정이며 서버/클라이언트 컴포넌트 경계와 Route Handler 활용 세부는 구현 설계에서 정한다. [공식 컴포넌트 문서](https://nextjs.org/docs/app/getting-started/server-and-client-components), [서버 경계 가이드](https://nextjs.org/docs/app/guides/backend-for-frontend)를 근거로 하며 특정 버전 설치를 가정하지 않는다.
 
 ## 4. 배포 아키텍처
 
-### 4.1 배포 다이어그램
+### 4.1 실행 환경·설정
 
-```mermaid
-flowchart TB
-    subgraph 인터넷
-        USER[사용자]
-        CDN[CDN<br/>CloudFront / Cloudflare]
-    end
+PRD 8.1·8.3의 현재 결정은 Next.js 웹과 FastAPI API를 Vercel에 배포하고 Neon Free PostgreSQL을 사용하는 것이다. 이전 공동 상시 Python 호스트/무료 VM 우선 검토는 대체되었다. Next.js 웹과 FastAPI API는 Vercel Services의 단일 프로젝트·공통 공개 origin으로 배포한다. `/api/auth/*`·`/api/v1/*`는 Python API로, 나머지 화면 경로는 웹으로 라우팅한다. 서비스의 코드/빌드 책임은 분리하되 배포는 함께 관리한다. 실제 Services 설정·SSR 호출 경로·cookie/OAuth callback·Schedules 연계·무료 한도는 실행 검증 대상이다. TypeScript가 Python 업무 정책을 중복 구현하지 않는다. 정기 수집·메일의 실행부는 같은 Python 업무 코드를 사용한다. 일반 Functions 안에 무한 worker 루프를 넣지 않으며 정기 실행은 Vercel Schedules로 확정한다. Asia/Seoul의 매시·07:30 수집과 08:00 브리핑을 예약하고(무료 플랜은 예약 시각 뒤 최대 15분 시작 분산·월 5,000회 한도를 수용, 한 번의 실행이 DB 작업 큐의 출처별 작업을 처리해 월 약 780회), 함수의 유한 실행·중단/복구·DB session 연결·무료 자원 한도를 검증한다. 예약 발생 ID와 scheduled time은 기존 업무 job 고유 키·실제 시작 시각 검사에 연결한다. 중복·늦은 전달은 기존 멱등/마감 규칙으로 처리하며 Schedules를 선택했다는 이유로 메일 자동 재발송을 추가하지 않는다. Queues·Daemons는 추가로 채택하지 않았다. 매시/07:30 수집과 08:00 목표·08:20 시작 마감 정책을 유지한다. Oracle 계정이나 VM 생성은 필수 절차가 아니다.
 
-    subgraph "클라우드 환경 [AWS / GCP / 온프레미스]"
-        subgraph "Public Subnet"
-            ALB[Application Load Balancer<br/>L7 로드 밸런서]
-            WAF[WAF<br/>웹 방화벽]
-        end
+웹·API·작업 실행부는 동일 commit의 호환 artifact와 DB 스키마를 사용한다. 월 0원 제약으로 충족하지 못하는 조건이 있으면 변경안을 다시 검토한다. 플랫폼 지원은 실제 배포/작업 성공의 증거가 아니다. [구현·인계의 Vercel 검토](../04-구현/구현-테스트-인계서.md#02-vercel-적용-가능-범위선택지).
 
-        subgraph "Private Subnet - Application"
-            subgraph "Container Cluster [ECS / K8s]"
-                APP1[API Server #1<br/>컨테이너]
-                APP2[API Server #2<br/>컨테이너]
-                APP3[Worker #1<br/>비동기 처리]
-            end
-        end
+| 서버 설정 | 용도 |
+|---|---|
+| APP_ORIGIN | 인증 콜백·날짜별 전체 브리핑 링크의 고정 HTTPS origin |
+| DATABASE_URL | Neon PostgreSQL 서버 연결. session 잠금 경로는 직접 연결 필수, TypeScript 웹/클라이언트 노출 금지 |
+| AUTH_SECRET | Python API 세션 보호, 실제 변수명은 세션 라이브러리와 맞춤 |
+| API 내부 호출 설정 | 같은 Services 프로젝트의 Python API를 고정 목적지로 호출. 브라우저 제공 origin은 금지. 바인딩/고정 route의 실제 호출 설정은 배포 검증에서 확인하며 별도 프로젝트 URL을 필수로 두지 않음 |
+| OWNER_GOOGLE_SUBJECT | 변경 가능한 표시 이름 대신 검증할 소유자 ID |
+| GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI | Google 로그인·Gmail 권한에 사용하는 OAuth 앱·고정 callback, 서버 전용 |
+| TOKEN_ENCRYPTION_KEY | Gmail refresh token 암호화 키. DB·저장소와 분리 |
+| GitHub Secrets: 백업용 DB 직접 연결·백업 암호화 키 | 주간 백업 workflow 전용. Vercel 환경·저장소 파일과 분리하고 실제 이름은 구현 때 정함 |
 
-        subgraph "Private Subnet - Data"
-            DB_PRIMARY[(Primary DB<br/>PostgreSQL)]
-            DB_REPLICA[(Read Replica<br/>PostgreSQL)]
-            REDIS[(Redis Cluster<br/>캐시/세션)]
-            MQ_SVC[Message Queue<br/>RabbitMQ / SQS]
-        end
+AI API 키·문서 분석 서버 설정은 없다. Gmail 연결에 검증된 계정·암호화 refresh token을 저장하고 발신·수신 주소는 같은 연결 주소로 결정한다. 사이트 로그인과 Gmail은 동일 Google sub를 사용한다. 인증 세션과 발송 권한/token은 수명과 해제 처리를 분리하며 PRD 8.2를 따른다. 개발·테스트에서는 메일을 mock하고 운영 DB·실제 전체 출처를 자동 조회하지 않는다.
 
-        subgraph "Storage"
-            S3_BUCKET[(Object Storage<br/>S3 / GCS)]
-        end
+### 4.2 작업 시간과 중복 실행
 
-        subgraph "Monitoring"
-            MON[모니터링<br/>Grafana + Prometheus]
-            LOG[로그 수집<br/>ELK / Loki]
-            ALERT[알림<br/>PagerDuty / Slack]
-        end
-    end
+| 작업 | 기준 | 멱등 키·복구 |
+|---|---|---|
+| 시간별 수집 | 매시 00분 Asia/Seoul | `collect/{source_id}/{generation}/{KST시간슬롯}` |
+| 아침 최종 수집 | 매일 07:30 Asia/Seoul | `collect-final/{source_id}/{generation}/{KST날짜}` |
+| 초기·재활성 기준 수집 | 추가/켜기 직후 | `baseline/{source_id}/{generation}` |
+| 브리핑 구성·발송 | 매일 08:00, 주말 포함 | `digest/{owner_id}/{KST날짜}` |
+| 테스트 메일 | 소유자의 명시적 요청 | `test/{owner_id}/{request_uuid}` |
 
-    USER -->|HTTPS| CDN
-    CDN -->|정적 자산| S3_BUCKET
-    CDN -->|API 요청| WAF
-    WAF --> ALB
-    ALB --> APP1
-    ALB --> APP2
-    APP1 --> DB_PRIMARY
-    APP1 --> DB_REPLICA
-    APP1 --> REDIS
-    APP1 --> MQ_SVC
-    APP2 --> DB_PRIMARY
-    APP2 --> DB_REPLICA
-    APP2 --> REDIS
-    MQ_SVC --> APP3
-    APP3 --> DB_PRIMARY
-    DB_PRIMARY -->|복제| DB_REPLICA
-    APP1 --> MON
-    APP2 --> MON
-    MON --> ALERT
+UTC instant를 저장하고 업무 날짜·시간 슬롯만 KST로 계산한다. 작업 등록은 고유 키로 중복을 막고 worker는 임대와 heartbeat로 회수한다. 중단된 일반 수집은 재개할 수 있으나 외부 발송을 시작한 작업은 먼저 `deliveries`를 확인한다. CR-FLOW-001로 수집 슬롯 최대 2개와 발송 슬롯 1개를 분리하고 발송 슬롯에서는 digest가 test_email보다 우선한다. 첫 실제 snapshot은 [08:00,08:20)에서만 시작한다. 08:20 미시작/과거 누락은 missed와 사유를 기록하되 이미 시작한 외부 요청의 결과를 missed로 덮어쓰지 않는다. 서버 재시작 후 수집을 보충하고 누락된 발송 슬롯은 탐지하여 상태에 표시한다. 과거 여러 날짜의 메일을 한꺼번에 자동 발송하지 않고 다음 정상 아침에 미발송을 묶는 확정 정책을 따른다(PRD 4.4).
 
-    style ALB fill:#E8A838,color:#fff
-    style APP1 fill:#4A90D9,color:#fff
-    style APP2 fill:#4A90D9,color:#fff
-    style APP3 fill:#4A90D9,color:#fff
-    style DB_PRIMARY fill:#5BA85B,color:#fff
-    style DB_REPLICA fill:#5BA85B,color:#fff
-    style REDIS fill:#D94A4A,color:#fff
-```
+### 4.3 운영 관측
 
-### 4.2 환경 구성
-
-| 환경 | 용도 | URL 패턴 | 인프라 규모 | 데이터 |
-|------|------|----------|-------------|--------|
-| **Development (DEV)** | 개발/디버깅 | `dev.[도메인]` | 최소 (단일 인스턴스) | 테스트 데이터 |
-| **Staging (STG)** | 통합 테스트, QA | `stg.[도메인]` | 운영의 축소 구성 | 익명화된 운영 데이터 복제 |
-| **Production (PROD)** | 실서비스 운영 | `[도메인]` | 고가용성 구성 | 실 데이터 |
-
-#### 환경별 상세 구성
-
-| 구성 요소 | DEV | STG | PROD |
-|-----------|-----|-----|------|
-| API Server 인스턴스 | 1 | 2 | [N개, 오토스케일링] |
-| DB 구성 | 단일 | Primary + Replica | Primary + Multi-Replica |
-| Redis | 단일 | 단일 | Cluster (3노드 이상) |
-| CDN | 미사용 | 사용 | 사용 |
-| WAF | 미사용 | 사용 | 사용 |
-| 모니터링 수준 | 기본 로깅 | 전체 | 전체 + 알림 |
-| SSL/TLS | 자체 서명 | Let's Encrypt | 상용 인증서 |
-| 백업 주기 | 미실시 | 일 1회 | [백업 정책에 따름] |
-
-### 4.3 CI/CD 파이프라인
-
-```mermaid
-flowchart LR
-    subgraph "소스 관리"
-        GIT[Git Repository<br/>GitHub / GitLab]
-    end
-
-    subgraph "CI 파이프라인"
-        LINT[Lint / Format<br/>ESLint, Prettier]
-        TEST[Unit Test<br/>Jest / JUnit]
-        BUILD[Build<br/>Docker Image]
-        SCAN[보안 스캔<br/>SonarQube, Trivy]
-        PUSH[이미지 Push<br/>ECR / GCR]
-    end
-
-    subgraph "CD 파이프라인"
-        DEV_DEPLOY[DEV 배포<br/>자동]
-        STG_DEPLOY[STG 배포<br/>자동]
-        INT_TEST[통합 테스트<br/>E2E Test]
-        APPROVAL[수동 승인<br/>배포 관리자]
-        PROD_DEPLOY[PROD 배포<br/>Blue-Green / Rolling]
-    end
-
-    GIT -->|Push / PR| LINT
-    LINT --> TEST
-    TEST --> BUILD
-    BUILD --> SCAN
-    SCAN -->|통과| PUSH
-    PUSH --> DEV_DEPLOY
-    DEV_DEPLOY --> STG_DEPLOY
-    STG_DEPLOY --> INT_TEST
-    INT_TEST -->|통과| APPROVAL
-    APPROVAL -->|승인| PROD_DEPLOY
-
-    style LINT fill:#E8A838,color:#fff
-    style TEST fill:#4A90D9,color:#fff
-    style SCAN fill:#D94A4A,color:#fff
-    style APPROVAL fill:#8B5CF6,color:#fff
-    style PROD_DEPLOY fill:#5BA85B,color:#fff
-```
-
-#### CI 단계 상세
-
-| 단계 | 도구 | 트리거 조건 | 실패 시 동작 |
-|------|------|-------------|--------------|
-| 코드 품질 검사 | [ESLint / SonarQube] | PR 생성, Push | PR 머지 차단 |
-| 단위 테스트 | [Jest / JUnit] | PR 생성, Push | PR 머지 차단 |
-| 커버리지 확인 | [Istanbul / JaCoCo] | PR 생성 | 기준 미달 시 경고 ([N]% 이상) |
-| Docker 빌드 | [Docker / Buildah] | 머지 시 | 파이프라인 중단 |
-| 보안 스캔 | [Trivy / Snyk] | 빌드 완료 후 | Critical 취약점 시 중단 |
-| 이미지 Push | [ECR / GCR / Docker Hub] | 스캔 통과 후 | 파이프라인 중단 |
-
-#### CD 단계 상세
-
-| 환경 | 배포 전략 | 트리거 | 롤백 방법 |
-|------|-----------|--------|-----------|
-| DEV | 직접 배포 | main 머지 시 자동 | 이전 이미지 재배포 |
-| STG | [Blue-Green / Rolling] | DEV 성공 후 자동 | 이전 버전 전환 |
-| PROD | [Blue-Green / Canary / Rolling] | 수동 승인 후 | [롤백 전략 상세] |
-
-### 4.4 인프라 코드(IaC) 전략
-
-| 항목 | 내용 |
-|------|------|
-| IaC 도구 | [Terraform / Pulumi / CloudFormation] |
-| 상태 관리 | [S3 + DynamoDB Lock / Terraform Cloud / 기타] |
-| 모듈 구조 | 환경별(dev/stg/prod) 분리, 공통 모듈 재사용 |
-| 버전 관리 | Git 기반, 코드 리뷰 필수 |
-| 적용 프로세스 | Plan 검토 -> 승인 -> Apply |
-
-#### IaC 디렉토리 구조
-
-```
-infra/
-├── modules/
-│   ├── networking/       # VPC, Subnet, Security Group
-│   ├── compute/          # ECS / EKS / EC2
-│   ├── database/         # RDS, ElastiCache
-│   ├── storage/          # S3, EFS
-│   └── monitoring/       # CloudWatch, Grafana
-├── environments/
-│   ├── dev/
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── terraform.tfvars
-│   ├── stg/
-│   └── prod/
-├── backend.tf
-└── versions.tf
-```
-
----
+출처별 최근 시도·성공·오류, 작업 지연·임대 만료, 정기/테스트 메일 결과를 분리 기록한다. 화면은 ‘제공업체 접수’와 받은편지함 도착을 구분한다. URL query·메일 주소·인증값을 로그에 그대로 쓰지 않는다. 백업 주기·개수는 PRD 8.4의 주 1회·최근 성공본 4개로 확정했다. 실행은 GitHub Actions 주간 예약 workflow가 Neon 직접 연결로 덤프를 만들고 암호화해 비공개 저장소의 Actions Artifact로 올리며, 업로드·검증 성공 뒤에만 4개를 넘는 오래된 백업을 지운다(보관 기간 자동 만료만으로 정리하지 않음). 장애 확인 후 24시간 이내 복구 목표도 확정했다. 핵심 기록 보존은 PRD 6.2를 따른다. 상세 디버그/원본 HTTP 응답을 운영 DB에 장기 보관하지 않는다. 무료 저장 용량·백업 실행/보관·복원 실측 검증·장애 통보 채널은 DEC-007에서 확인하며 새 알림 채널을 임의로 추가하지 않는다.
 
 ## 5. 아키텍처 결정 기록 (ADR)
 
-### 5.1 ADR 템플릿
+| ID·상태 | 결정 제안 | 이유·트레이드오프 | 상위 미결 |
+|---|---|---|---|
+| ADR-001 / 승인(2026-11-26)·실행 미검증 | Vercel Services 한 프로젝트의 Next.js·FastAPI 및 별도 유한 작업 책임 | 공통 origin·함께 배포. cookie/OAuth/SSR/Schedules와 무료 실행 검증 필요 | DEC-001 |
+| ADR-002 / DB 종류 확정·구현 세부 미결 | PostgreSQL 채택 확정. 고유 제약·작업 큐·잠금 처리 세부는 설계 제안 | 별도 브로커 감소. DB 연결·잠금 만료 관리를 직접 수행 | DEC-001·007 |
+| ADR-003 / 계정 정책 확정·구현 세부 미결 | Google OIDC 소유자 sub 비교, 로그인 계정과 Gmail 연결 계정 통일 | 최초 로그인 발송 동의·동일 sub 검증. 인증 세션과 발송 권한 수명 분리 | PRD 8.2 / DB 저장 세션·7일 수명 확정. OAuth 라이브러리·실제 세션/운영 검증 미완료 |
+| ADR-004 / 승인(2026-11-26) | Gmail OAuth 발송 + 영속 메시지·앱 중복 키·불명확 격리. OAuth 앱은 프로덕션 게시(검증 미신청) | Gmail 자체 멱등 처리를 가정하지 않음. 미확인 건은 소유자 Gmail 대조 필요 | DEC-002 |
+| ADR-005 / 핵심 정책 확정·실행 세부 검증 | CR-FLOW-001: 첫 등록/재활성 구분·pending 최신 게시일·실제 시작 snapshot·08:20 미시작 이월·부분 수집·날짜별 상태 | ①②⑤ 사용자 선택·③④⑥ 설계 보완. 기존 중복 방지와 개인 상태 보존 | DEC-003·006: 표본 상한·수동 확인 기록 위치 등 구현 세부는 미결 |
+| ADR-006 / 테마 범위 확인·실행 미검증 | v1 다크 기본 + 다크/라이트 전환·브라우저별 선택 저장. 대비/UI 보완 채택 | 사용자 라이트 시안 만족·CR-UX-002 확인. 앱 전체 의미 토큰과 localStorage로 처리, API/DB 추가 없음 | DEC-008: 한국어 Pretendard 확정, 실제 로딩·전체 상태/렌더링 검증은 미결 |
 
-```
-## ADR-[NNN]: [결정 제목]
+사이트 세션은 Google 로그인 성공 시점부터 7일(604,800초) 고정 만료다. 일반 요청·페이지 방문·cookie 재발급으로 최초 만료 시각을 연장하지 않는다. 만료 시 개인 API는 401로 응답하고 화면은 Google 로그인 후 안전한 원래 내부 경로로 복귀한다. 로그아웃은 즉시 세션을 종료한다. 사이트 세션 만료·로그아웃은 Gmail 발송 token이나 정기 작업을 해제하지 않는다.
 
-| 항목 | 내용 |
-|------|------|
-| **ADR ID** | ADR-[NNN] |
-| **상태** | [제안(Proposed) / 승인(Accepted) / 폐기(Deprecated) / 대체(Superseded by ADR-XXX)] |
-| **날짜** | [YYYY-MM-DD] |
-| **의사결정자** | [이름 / 역할] |
+사이트 OAuth 완료 후 Python API가 고정 소유자 subject를 검사한다. cookie 세션에는 provider token을 넣지 않고 API 직접 URL 접근도 동일하게 검증한다. TypeScript 웹은 고정 API proxy를 제공하며 인증 우회 헤더를 생성하지 않는다. DB 저장 세션은 사용자 채택 사항이다. OAuth 라이브러리(Authlib 제안) 선정·호환 버전·실제 구현 검증은 남아 있다. [Authlib 서버 OAuth 문서](https://docs.authlib.org/en/stable/oauth2/client/web/index.html).
 
-### 컨텍스트 (Context)
-[결정이 필요한 배경과 상황을 기술한다.]
+### 5.1 ADR-005: 브리핑·목록 정책과 구현 검증
 
-### 결정 (Decision)
-[내린 결정을 명확하게 기술한다.]
+CR-FLOW-001의 ①②⑤는 사용자 선택, ③④⑥는 검토 요청에 따른 설계 보완으로 BP·SRS·SC·RTM에 동기화한다. 2026-11-26 사용자 채택으로 숨김의 목록 전용 효과·구독 중지 시 기존 대기 억제·20개 초과 전체 통지를 추가 확정했다. 모든 목록 최신순도 사용자 선택으로 확정했으며 실행 세부는 구현 검증 대상으로 남긴다. 이는 전체 문서 게이트 승인을 뜻하지 않는다.
 
-### 근거 (Rationale)
-[결정의 이유와 고려한 대안들을 기술한다.]
-- 선택지 1: [설명] — [장점/단점]
-- 선택지 2: [설명] — [장점/단점]
-- 선택지 3: [설명] — [장점/단점]
+| 항목 | 설계 기본안 | 영향 |
+|---|---|---|
+| 오늘의 글 | 해당 KST 날짜의 전체 브리핑 대상. 08:00 전에는 동일 후보 규칙의 미리보기, 이후 날짜 스냅샷 | 오늘 게시된 글과 오늘 브리핑을 혼동하지 않음 |
+| 대상 확정 / CR-FLOW-001 | KST [08:00,08:20) 실제 owner 잠금·첫 snapshot 확보 시 확정. 미시작은 missed·다음 정상 아침 합침 | 수집과 발송 실행 슬롯 분리·digest 우선. 첫 확정 이후 새 글은 추가하지 않음 |
+| 구독 끄기 | 미발송 대기는 억제하고 현재 epoch 종료. 켜기는 새 기준 수집부터 시작 | 끄기 전 미요청 대기도 억제하며 재개로 되살리지 않음. sending/unknown/accepted는 불변 |
+| 첫 등록/해제 기간 / CR-FLOW-001 | first_add 기준 이후의 늦은 과거 글은 허용. resume/readd는 새 기준 응답·epoch 시작 전 게시 글 억제 | 기존 baseline/suppressed/notified는 metadata 수정으로 되살리지 않음 |
+| 게시일 정정 / CR-FLOW-001 | mutable pending은 최신 게시일로 재계산, prepared 최종 검사 | sending/unknown/accepted snapshot/예약은 불변 |
+| 개별 항목 오류 / CR-FLOW-001 | 항목 격리·partial, 응답 전체 오류는 출처 실패 | 정상 글 처리 계속, 초기 격리 표식 보존 |
+| 정기 상태 / CR-FLOW-001 | API-022는 날짜별 digests + nullable delivery, 테스트는 API-015 | 미확정/누락은 null, 실제 빈 snapshot만 0 |
+| 숨김 | 오늘/전체/저장 기본 목록에서 숨김. ‘숨긴 글 보기’에서 복원 가능. 메일 후보에는 영향 없음 | 수동 목록 숨김과 구독/발송 제외를 구분 |
+| 정렬 / 2026-11-26 소유자 확정 | 오늘/전체/저장 모두 `published_at ?? first_seen_at` 내림차순, 동률 article ID 내림차순. 별도 정렬 UI 없음 | 확정 브리핑은 같은 기준으로 구성한 sort_position 보존. 저장 시각으로 정렬하지 않음 |
+| 이메일 20개 초과 | 전체 대상 중 최신 20개만 본문에 넣고 Gmail 접수 확인 후 전체 유효 snapshot을 통지 처리. 읽음은 유지하고 unknown은 전체 held | 나머지가 다음 날 중복 안내되지 않음 |
+| 실패·중지 | 알려진 미접수 실패는 미발송 유지, 다음 정상 아침 재선정. 정지 중 후보 누적 | 중지·실패와 구독 해제의 다른 효과 보존 |
+| 성공 불명확 | 자동 재전송·새 날짜 이월을 보류하고 제공업체 기록 확인 | 중복을 피하지만 확인 전 통지 지연 가능 |
+| 같은 날 재실행 / CR-MIN-001 | 외부 send는 날짜당 최대 1회, 명확한 실패는 다음 정상 아침에 합침. unknown은 확인 전 held | 첫 외부 호출 전 prepared 정정만 새 revision, 결과 DB 기록 재시도는 가능 |
 
-### 결과 (Consequences)
-- 긍정적: [기대되는 긍정적 결과]
-- 부정적: [감수해야 할 부정적 결과 또는 트레이드오프]
-- 중립적: [기타 영향]
-```
+**관측 한계:** 날짜 없는 글이 기준 수집에 노출되지 않았다가 나중에 처음 등장하면 실제 게시 시기를 판별할 수 없다. 피드가 전체 이력을 제공한다는 보장은 하지 않는다. 재활성 기준에 나타난 글을 억제하고, 이후 무게시일 글은 발견일 규칙을 적용하는 안이다. DEC-003·006에서 이 한계와 검증 조건을 확인한다.
 
-### 5.2 ADR 목록
+### 5.2 ADR-006: 라이트 채택·전환·저장 (CR-UX-002)
 
-| ADR ID | 제목 | 상태 | 날짜 |
-|--------|------|------|------|
-| ADR-001 | [백엔드 프레임워크 선정] | [승인] | [YYYY-MM-DD] |
-| ADR-002 | [인증 방식 결정] | [승인] | [YYYY-MM-DD] |
-| [ADR-NNN] | [제목] | [상태] | [날짜] |
+테마의 현재 구현 기준은 화면설계서 7.6을 따른다.
 
-### 5.3 ADR 예시
+화면설계서 7.6의 테마 적용·저장·실패 처리 규칙을 따른다.
 
-#### ADR-001: 백엔드 프레임워크로 [NestJS / Spring Boot] 선정
+다크만 제공하는 이전 제안을 대체한다. 공통 웹 루트가 `data-theme`와 CSS 의미 토큰으로 모든 기능·로그인·drawer/dialog를 동일하게 바꾼다. TypeScript의 enum 검증·저장/복원만 필요하고 Python·작업·DB에 테마 상태를 만들지 않는다. 초기 저장값은 첫 화면 표시 전에 읽되 인증·개인 데이터 렌더링 경계를 바꾸지 않는다.
 
-| 항목 | 내용 |
-|------|------|
-| **ADR ID** | ADR-001 |
-| **상태** | 승인 (Accepted) |
-| **날짜** | [YYYY-MM-DD] |
-| **의사결정자** | [기술 리드, 시니어 개발자] |
-
-**컨텍스트**
-
-[프로젝트명]의 백엔드 서비스를 구현할 프레임워크를 선정해야 한다. 팀은 [N]명의 개발자로 구성되어 있으며, [TypeScript / Java]에 대한 경험이 [상/중/하] 수준이다. 시스템은 [동시 접속자 수], [트랜잭션 처리량] 등의 요구사항을 충족해야 한다.
-
-**결정**
-
-백엔드 프레임워크로 **[NestJS / Spring Boot]**를 선정한다.
-
-**근거**
-
-- 선택지 1: NestJS — TypeScript 기반, 모듈 구조 체계적, 프론트엔드와 언어 통일 가능. 단, 대규모 엔터프라이즈 레퍼런스 상대적으로 적음.
-- 선택지 2: Spring Boot — Java 기반, 엔터프라이즈 검증 완료, 풍부한 생태계. 단, 팀 Java 경험이 부족하면 학습 곡선 존재.
-- 선택지 3: Django — Python 기반, 빠른 프로토타이핑 가능. 단, 대규모 비동기 처리 성능에 제약.
-
-[선택한 프레임워크]를 선정한 주요 이유: [구체적 이유 2~3가지]
-
-**결과**
-
-- 긍정적: [예) 프론트엔드와 동일 언어 사용으로 코드 공유 및 팀 효율성 향상]
-- 부정적: [예) 특정 엔터프라이즈 패턴 구현 시 추가 라이브러리 필요]
-- 중립적: [예) 기존 레거시 시스템과의 통합을 위한 어댑터 패턴 적용 필요]
-
----
-
-#### ADR-002: JWT 기반 인증과 세션 쿠키 방식 중 JWT 선정
-
-| 항목 | 내용 |
-|------|------|
-| **ADR ID** | ADR-002 |
-| **상태** | 승인 (Accepted) |
-| **날짜** | [YYYY-MM-DD] |
-| **의사결정자** | [기술 리드, 보안 담당자] |
-
-**컨텍스트**
-
-사용자 인증 및 인가 방식을 결정해야 한다. 시스템은 웹과 모바일 클라이언트를 모두 지원해야 하며, [마이크로서비스 / 모놀리식] 구조에서 서비스 간 인증 정보 전달이 필요하다.
-
-**결정**
-
-**JWT (JSON Web Token)** 기반 인증 방식을 채택한다. Access Token + Refresh Token 조합을 사용한다.
-
-**근거**
-
-- 선택지 1: JWT — Stateless, 서비스 간 전파 용이, 모바일 친화적. 단, 토큰 무효화 즉시 불가(만료까지 대기 또는 블랙리스트 관리 필요).
-- 선택지 2: 세션 쿠키 — 서버측 세션 관리로 즉시 무효화 가능, 구현 단순. 단, 서비스 확장 시 세션 공유 문제, 모바일 앱에서 쿠키 관리 복잡.
-- 선택지 3: OAuth 2.0 + OIDC — 표준 프로토콜, 소셜 로그인 지원 용이. 단, 자체 구현 복잡도 높음.
-
-JWT를 선정한 주요 이유: 웹/모바일 통합 지원, Stateless 아키텍처에 적합, 서비스 간 인증 정보 전달 용이.
-
-**결과**
-
-- 긍정적: Stateless 구조로 수평 확장 용이, 클라이언트 플랫폼 독립적
-- 부정적: 토큰 즉시 무효화를 위해 Redis 기반 블랙리스트 구현 필요
-- 중립적: Refresh Token 로테이션 및 보안 저장 정책 별도 수립 필요
-
----
+선택지 중 계정 DB 저장은 기기 간 동기화가 필요할 때 별도 검토한다. 현재는 동기화 요구가 없어 브라우저별 저장을 택한다. OS 자동 모드는 추가하지 않는다. 대비 토큰·disabled 변형·전체 목업 인계는 UIX 7.6, 실제 구현은 DDS 5.9.1/04 IMP-06을 따른다. 한국어는 Pretendard로 확정한다. 워드마크·영문 강조·숫자·URL은 Plus Jakarta Sans를 사용한다. system-ui는 대체 글꼴이며 실제 설치·로딩·줄바꿈·굵기 검증은 구현 단계에서 수행한다.
 
 ## 6. 비기능 요구사항 대응 설계
 
-### 6.1 성능 (Performance)
-
-#### 성능 목표
-
-| 지표 | 목표 값 | 측정 방법 |
-|------|---------|-----------|
-| API 응답 시간 (P50) | [< 200ms] | [APM 도구] |
-| API 응답 시간 (P95) | [< 500ms] | [APM 도구] |
-| API 응답 시간 (P99) | [< 1000ms] | [APM 도구] |
-| 동시 접속자 수 | [N명] | [부하 테스트] |
-| 초당 요청 수 (RPS) | [N건/초] | [부하 테스트] |
-| 페이지 로딩 시간 | [< 2초] | [Lighthouse] |
-
-#### 캐싱 전략
-
-| 캐시 대상 | 캐시 저장소 | TTL | 무효화 전략 |
-|-----------|-------------|-----|-------------|
-| API 응답 (목록 조회) | Redis | [N분] | 데이터 변경 시 삭제 |
-| 사용자 세션 | Redis | [N시간] | 로그아웃 시 삭제 |
-| 정적 자산 (JS/CSS/이미지) | CDN | [N일] | 배포 시 버전 갱신 |
-| DB 쿼리 결과 | Redis | [N분] | Write-Through / Write-Behind |
-| [추가 대상] | [저장소] | [TTL] | [전략] |
-
-#### CDN 구성
-
-| 항목 | 설정 |
-|------|------|
-| CDN 서비스 | [CloudFront / Cloudflare / Akamai] |
-| 캐시 대상 | 정적 자산 (JS, CSS, 이미지, 폰트) |
-| 오리진 | [S3 / API Server] |
-| 캐시 정책 | [Cache-Control 헤더 기반] |
-| 무효화 | [배포 시 자동 Invalidation / 파일 해시 기반] |
-
-#### 데이터베이스 최적화
-
-| 최적화 항목 | 적용 전략 | 상세 |
-|-------------|-----------|------|
-| 쿼리 최적화 | 인덱스, 쿼리 플랜 분석 | [상세 전략] |
-| 커넥션 풀링 | [HikariCP / pg-pool] | 최소 [N], 최대 [N] 커넥션 |
-| 읽기/쓰기 분리 | Read Replica 활용 | 읽기 전용 쿼리를 Replica로 라우팅 |
-| N+1 문제 방지 | Eager Loading / DataLoader | [상세 전략] |
-| [추가 항목] | [전략] | [상세] |
-
-### 6.2 보안 (Security)
-
-#### 인증/인가 아키텍처
-
-```mermaid
-flowchart LR
-    CLIENT[클라이언트] -->|1. 로그인 요청| AUTH[Auth Service]
-    AUTH -->|2. 자격 증명 검증| DB[(User DB)]
-    AUTH -->|3. JWT 발급| CLIENT
-    CLIENT -->|4. API 요청 + Bearer Token| GW[API Gateway]
-    GW -->|5. 토큰 검증| AUTH
-    GW -->|6. 인가된 요청 전달| API[API Service]
-    API -->|7. RBAC 검사| API
-    API -->|8. 응답| CLIENT
-```
-
-#### 보안 계층별 대응
-
-| 계층 | 위협 | 대응 방안 |
-|------|------|-----------|
-| 네트워크 | DDoS, 중간자 공격 | WAF, TLS 1.3, VPC 격리 |
-| 인증 | 무차별 대입, 세션 탈취 | Rate Limiting, JWT 만료, Refresh Token 로테이션 |
-| 인가 | 권한 상승, IDOR | RBAC/ABAC, 리소스 소유권 검증 |
-| 입력 | SQL Injection, XSS, CSRF | 파라미터 바인딩, CSP, CSRF 토큰 |
-| 데이터 | 정보 유출 | 암호화(at-rest, in-transit), 개인정보 마스킹 |
-| 의존성 | 취약한 라이브러리 | 자동 스캔 (Snyk / Dependabot), 정기 업데이트 |
-| [추가 계층] | [위협] | [대응] |
-
-#### 데이터 암호화
-
-| 대상 | 암호화 방식 | 알고리즘 / 키 관리 |
-|------|-------------|-------------------|
-| 전송 중 데이터 | TLS 1.3 | 인증서 자동 갱신 (ACM / Let's Encrypt) |
-| 저장 데이터 | AES-256-GCM | [KMS / Vault] 키 관리 |
-| 비밀번호 | 단방향 해시 | bcrypt (cost factor [12]) |
-| 민감 정보 (PII) | 필드 레벨 암호화 | [KMS / 자체 키] |
-| [추가 대상] | [방식] | [상세] |
-
-### 6.3 확장성 (Scalability)
-
-#### 수평 확장 전략
-
-| 컴포넌트 | 확장 방식 | 상세 |
-|----------|-----------|------|
-| API Server | 수평 확장 (Scale-Out) | 오토스케일링, Stateless 설계 |
-| Worker | 수평 확장 | 메시지 큐 기반 작업 분배 |
-| Database | 읽기 확장 (Read Replica) | 쓰기: Primary, 읽기: Replica |
-| Cache | 클러스터 확장 | Redis Cluster / Sentinel |
-| [추가 컴포넌트] | [방식] | [상세] |
-
-#### 오토스케일링 정책
-
-| 지표 | 임계값 | Scale-Out | Scale-In | 쿨다운 |
-|------|--------|-----------|----------|--------|
-| CPU 사용률 | [70%] | +[N]대 | -[N]대 | [300초] |
-| 메모리 사용률 | [80%] | +[N]대 | -[N]대 | [300초] |
-| 요청 수 (RPS) | [N건/초] | +[N]대 | -[N]대 | [300초] |
-| 최소 인스턴스 | [N]대 | - | - | - |
-| 최대 인스턴스 | [N]대 | - | - | - |
-
-### 6.4 가용성 (Availability)
-
-#### 가용성 목표
-
-| 항목 | 목표 | 허용 다운타임 (연간) |
-|------|------|---------------------|
-| 전체 시스템 | [99.9% / 99.95% / 99.99%] | [8.76시간 / 4.38시간 / 52.6분] |
-| API 서비스 | [목표] | [다운타임] |
-| 데이터베이스 | [목표] | [다운타임] |
-
-#### 이중화 구성
-
-| 컴포넌트 | 이중화 방식 | 페일오버 시간 |
-|----------|-------------|---------------|
-| API Server | Active-Active (다중 인스턴스) | 즉시 (로드 밸런서) |
-| Database | Primary-Replica (Streaming Replication) | [< N초, 자동 페일오버] |
-| Cache (Redis) | Sentinel / Cluster | [< N초] |
-| Message Queue | Mirrored Queue / Replication | [< N초] |
-| Load Balancer | [이중화 방식] | [페일오버 시간] |
-
-#### 장애 복구 (DR - Disaster Recovery)
-
-| 항목 | 내용 |
-|------|------|
-| RPO (Recovery Point Objective) | [N시간] - 최대 허용 데이터 손실 시간 |
-| RTO (Recovery Time Objective) | [N시간] - 최대 허용 복구 시간 |
-| DR 전략 | [Pilot Light / Warm Standby / Multi-Site Active-Active] |
-| DR 사이트 | [리전 / 가용 영역] |
-| 복구 절차 | [별도 DR 절차서 참조 또는 개요 기술] |
-| DR 훈련 주기 | [분기 1회 / 반기 1회] |
-
-#### 헬스체크 구성
-
-| 대상 | 엔드포인트 | 주기 | 타임아웃 | 실패 기준 |
-|------|-----------|------|----------|-----------|
-| API Server | `/health` | [30초] | [5초] | [연속 3회 실패] |
-| Database | TCP 연결 확인 | [30초] | [5초] | [연속 3회 실패] |
-| Redis | `PING` 명령 | [15초] | [3초] | [연속 3회 실패] |
-| 외부 서비스 | [엔드포인트] | [60초] | [10초] | [연속 N회 실패] |
-
----
+| 요구사항 | 설계 대응 | 후속 검증 조건 |
+|---|---|---|
+| <a id="nfr-001"></a>NFR-001 | CMP-02, 모든 페이지/API/서비스의 소유자 검사, 비공개 응답 no-store | 비로그인·비소유자의 직접 URL/API 접근 거절 |
+| <a id="nfr-002"></a>NFR-002 | 서버 전용 비밀값·Gmail token 암호화, 리포트 메모리 처리·Referrer 차단 | 번들·로그·DB·브라우저 요청에서 평문 비밀정보·분석 이력 부재 |
+| <a id="nfr-003"></a>NFR-003 | 공개 IP로 연결을 고정하는 전용 HTTP 클라이언트, 매 redirect 재검증 | IPv4/IPv6 사설·예약·메타데이터·DNS 재바인딩 차단 |
+| <a id="nfr-004"></a>NFR-004 | CMP-07, DB 작업 큐, 출처별 트랜잭션·오류 격리 | 브라우저 종료·출처 1개 실패에서도 나머지 수집/발송 지속 |
+| <a id="nfr-005"></a>NFR-005 | CMP-01 등록 + 기능 자체 데이터·작업 | 임시 섹션 추가 후 tech 서비스 diff 없음 |
+| <a id="nfr-006"></a>NFR-006 | UIX 공통 44px 영역·라벨·포커스·오류 피드백 | 모바일·키보드 핵심 흐름, 색상 없이 상태 식별 |
+| <a id="nfr-007"></a>NFR-007 | soft delete·epoch·상태 독립 테이블, 자동 purge 미설정 | 출처 삭제/재추가·날짜 변경 후 저장·읽음·발송 이력 유지 |
+| <a id="nfr-008"></a>NFR-008 | 수집 timeout/크기/redirect/동시성 상한 강제 | 제안값 표본 측정 후 DEC-003에서 승인, 응답/가용성 수치 미확정 |
+| <a id="nfr-009"></a>NFR-009 | DESIGN 토큰 + UIX 공통 컴포넌트 | 측정값·적용 제안 구분, 한국어 줄바꿈 검토 |
+| <a id="nfr-010"></a>NFR-010 | 반응형 UI + 실제 지원 조합 합의 | ISSUE-001의 Mac Chrome + iPhone Safari에서 실행, 실제 OS/브라우저 버전·기기 정보 기록 |
 
 ## 7. 통합 패턴
 
-### 7.1 API Gateway 패턴
+### 7.1 공개 URL 확인·수집
 
-| 항목 | 내용 |
-|------|------|
-| 도구 | [Kong / AWS API Gateway / Nginx / Traefik] |
-| 라우팅 | URL 경로 기반 서비스 라우팅 |
-| 인증 | JWT 검증, API Key 인증 |
-| Rate Limiting | IP/사용자별 요청 제한 |
-| CORS | [허용 Origin 정책] |
-| 요청/응답 변환 | 헤더 추가, 바디 변환 |
-| 로깅 | 요청/응답 로깅 (민감 정보 마스킹) |
-| 서킷 브레이커 | [임계값 및 정책] |
+사용자 ‘연결 확인’ → 소유자/CSRF 검사 → URL 문법·인증정보 검사 → DNS 전체 주소의 공개 여부 확인 → 검증한 IP에 연결 → 제한된 응답에서 RSS/Atom 탐색 → 발견한 각 feed URL과 redirect도 동일 검사 → 후보 표시 → 사용자가 선택·추가 → 서버에서 다시 검증·중복 검사 → 기준 수집 작업 등록 순서다.
 
-#### API Gateway 라우팅 규칙
+일반 fetch의 DNS 검사 후 재조회 틈을 방치하지 않는다. HTTPS SNI·인증서 검증을 유지하며 검증한 목적 IP를 사용하고, 연결 경로가 바뀌면 다시 검사한다. 리다이렉트 자동 추적·임의 포트·XML 외부 엔티티·스크립트 실행은 허용하지 않는다. HTML은 기존 수집기가 있는 출처만 지원한다. 태그/유형은 수집 배제 조건이 아니다.
 
-| 경로 패턴 | 대상 서비스 | 인증 | Rate Limit |
-|-----------|-------------|------|------------|
-| `/api/v1/auth/**` | Auth Service | 불필요 (일부) | [N req/min] |
-| `/api/v1/users/**` | API Server | Bearer Token | [N req/min] |
-| `/api/v1/posts/**` | API Server | Bearer Token | [N req/min] |
-| `/api/v1/files/**` | File Service | Bearer Token | [N req/min] |
-| `/api/v1/admin/**` | API Server | Bearer Token + Admin Role | [N req/min] |
-| [추가 경로] | [서비스] | [인증] | [제한] |
+**DEC-003 검토용 상한 제안:** HTTP(S) 기본 포트만, URL UTF-8 2,048바이트 이하, 호출 전체 15초, redirect 최대 3회, 압축 해제 후 응답 5MiB, 소유자 수집 동시성 2개. 상한 초과를 명시적 오류로 처리한다. 한도가 원본 이력을 잘라내는 경우 성공·완전 수집으로 표시하지 않는다. 페이지 수집 범위·피드 truncation·출처별 날짜 해석은 표본과 지원 목록을 상세 설계에서 확정한다.
 
-### 7.2 메시지 큐 패턴
+### 7.2 수집 결과·삭제 경합
 
-| 항목 | 내용 |
-|------|------|
-| 도구 | [RabbitMQ / Apache Kafka / AWS SQS] |
-| 용도 | 비동기 작업 처리, 서비스 간 디커플링 |
-| 메시지 포맷 | JSON (스키마 버전 포함) |
-| 재시도 정책 | [최대 N회, 지수 백오프] |
-| Dead Letter Queue | [DLQ 구성 및 모니터링] |
+worker는 source의 generation과 epoch를 읽고 네트워크 조회를 수행한다. 저장 트랜잭션에서 source 행을 잠근 후 `active + generation 일치`를 다시 검사한다. 삭제/끄기는 같은 행을 잠그고 generation을 증가시킨다. 불일치 결과는 버리고 중복 키·기사·초기 기준·작업 결과를 원자적으로 기록한다. 기존 글 metadata 갱신은 읽음/저장·최초 발견·통지 이력을 바꾸지 않는다.
 
-#### 큐/토픽 목록
+### 7.3 브리핑·발송 경합
 
-| 큐/토픽 이름 | 용도 | Producer | Consumer | 메시지 예시 |
-|-------------|------|----------|----------|-------------|
-| `email.send` | 이메일 발송 | API Server | Notification Worker | `{ "to": "...", "template": "...", "data": {...} }` |
-| `file.process` | 파일 처리 (리사이징 등) | API Server | File Worker | `{ "fileId": "...", "operations": [...] }` |
-| `notification.push` | 푸시 알림 | API Server | Notification Worker | `{ "userId": "...", "title": "...", "body": "..." }` |
-| `audit.log` | 감사 로그 기록 | All Services | Audit Worker | `{ "action": "...", "userId": "...", "resource": "..." }` |
-| [추가 큐/토픽] | [용도] | [Producer] | [Consumer] | [메시지 구조] |
-
-#### 메시지 포맷 표준
-
-```json
-{
-  "id": "[UUID - 메시지 고유 ID]",
-  "type": "[이벤트 타입, 예: email.send]",
-  "version": "[메시지 스키마 버전, 예: 1.0]",
-  "timestamp": "[ISO 8601 형식]",
-  "source": "[발행 서비스명]",
-  "data": {
-    "[메시지 타입별 페이로드]": "..."
-  },
-  "metadata": {
-    "correlationId": "[요청 추적 ID]",
-    "userId": "[요청자 ID, 해당 시]"
-  }
-}
+```mermaid
+sequenceDiagram
+    participant W as Worker
+    participant D as PostgreSQL
+    participant M as 메일 제공업체
+    W->>D: 소유자 발송 잠금 획득 · 후보 최종 확인
+    W->>D: 전체 대상 예약 · 불변 메시지 prepared 커밋
+    W->>D: sending 전이 커밋
+    W->>M: 고정 MIME payload · 앱 내부 중복 검사
+    alt 제공업체 접수 확인
+        M-->>W: provider message ID
+        W->>D: accepted · 전체 대상 notified 원자적 기록
+    else 명확한 미접수
+        W->>D: failed · 예약 해제 · 후보 유지
+    else timeout 또는 프로세스 중단
+        W->>D: unknown · 예약 유지 · 확인 대기
+    end
+    W->>D: 발송 잠금 해제
 ```
 
-### 7.3 이벤트 버스 패턴
+외부 HTTP와 DB를 하나의 원자적 트랜잭션으로 만들 수는 없다. 소유자별 **session advisory lock**을 전용 DB 연결에서 잡고, 호출 전 최종 검사부터 제한 시간의 외부 호출·결과 기록까지 유지한다. 삭제/구독/알림 설정 변경도 같은 잠금 후 source 행 잠금 순서를 따른다. Gmail 연결 저장·해제·교체는 같은 발송 잠금 후 connection 행 잠금 순서를 따른다. 긴 DB 트랜잭션을 HTTP 동안 열어 두지는 않는다. 잠금 획득에 실패한 UI는 처리 중으로 안내하며 실패를 삭제 완료로 표시하지 않는다.
 
-| 항목 | 내용 |
-|------|------|
-| 적용 여부 | [사용 / 미사용] |
-| 도구 | [Kafka / EventBridge / NATS] |
-| 이벤트 저장소 | [이벤트 소싱 적용 여부] |
-| 이벤트 스키마 레지스트리 | [사용 시 도구명] |
+잠금을 먼저 얻은 발송이 이미 외부 요청을 시작했다면 뒤따르는 삭제로 취소를 약속하지 않는다. 프로세스 단절 후 `sending`은 unknown으로 복구한다. 예약된 글은 다른 날짜 발송에 재사용하지 않는다. 이전 Gmail 요청의 접수 여부가 확인되기 전 payload를 바꿔 재전송하지 않는다. token 갱신·연결 해제/교체도 같은 발송 잠금과 연결 version 검사를 사용한다.
 
-#### 도메인 이벤트 목록
+PostgreSQL의 session/transaction advisory lock 구분을 따른다. 연결 풀에 잠긴 session을 반환하지 않도록 전용 연결·finally 해제를 구현·검증해야 한다. [공식 잠금 문서](https://www.postgresql.org/docs/18/explicit-locking.html).
 
-| 이벤트명 | 도메인 | 발행 조건 | 구독자 | 데이터 |
-|----------|--------|-----------|--------|--------|
-| `UserRegistered` | User | 회원 가입 완료 시 | Notification, Analytics | `{ userId, email, registeredAt }` |
-| `OrderCreated` | Order | 주문 생성 시 | Payment, Inventory, Notification | `{ orderId, userId, items, totalAmount }` |
-| `PaymentCompleted` | Payment | 결제 완료 시 | Order, Notification | `{ paymentId, orderId, amount, method }` |
-| [추가 이벤트] | [도메인] | [조건] | [구독자] | [데이터] |
+Gmail `messages.send`의 공개 계약에 원격 멱등 키가 명시되어 있지 않으므로 DB 내부 request_key나 고정 RFC Message-ID만으로 중복 제거를 보장하지 않는다. timeout·5xx·접수 후 DB 실패는 unknown으로 보류한다. Gmail send의 SDK 자동 재시도를 끄고 timeout을 원격 취소로 해석하지 않는다. 소유자가 기한 없이 필요할 때 Gmail 보낸편지함 기록과 대조하며 확인 전 해당 글/발송 건의 unknown 예약을 유지한다. 고정 기한에 따른 실패 전환이나 자동 재전송은 없다. 다른 정상 글의 발송은 계속하며 근거를 OP-01로 기록한 뒤에만 다음 정상 아침의 재선정 여부를 판단한다. 앱은 메일함 읽기 scope를 요청하지 않는다. Gmail 전송 요청 전체 15초 timeout을 검토용 시작값으로 제안하며 초과는 unknown으로 처리한다. token 갱신 실패 등 send 호출 전 실패는 미접수로 분리한다. Gmail 접수와 도착·열람을 구분한다. [Gmail send 계약](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/send), [발송 오류·한도](https://developers.google.com/workspace/gmail/api/guides/handle-errors).
 
----
+### 7.4 Gmail 연결 경계
 
-## 부록
+첫 로그인 또는 동일 계정의 명시적 재연결에서 Google OAuth의 `openid email gmail.send` 최소 범위를 요청하고 offline refresh token을 암호화 보관한다. 로그인 Google sub와 같은 계정의 검증된 email만 발신/수신에 사용한다. 최초 로그인 발송 권한 누락은 사이트 로그인을 막지 않는다. access token은 서버 메모리에서만 사용하고 Gmail 비밀번호·앱 비밀번호·메일함 읽기 scope는 받지 않는다. 사용자 취소·권한 부족·token 철회는 재연결 상태로 안내하며 수집/읽기는 계속한다.
 
-### A. 다이어그램 목록
+동의 화면은 외부 사용자 유형·프로덕션 게시(Google 검증 미신청)로 확정했다(PRD 8.2). 소유자는 ‘확인되지 않은 앱’ 경고를 직접 통과한다. **설정 현황(2026-11-26):** Google Cloud 프로젝트 `levelup-515910`에 Gmail API를 켜고, 외부 사용자 유형 동의 화면(LevelUp), 범위 `openid`·`userinfo.email`(민감하지 않음)·`gmail.send`(민감), 웹 클라이언트 `levelup-web`(리디렉션 `http://localhost:3000/api/auth/callback/google`), 테스트 사용자 소유자 1명을 구성했다. 게시 상태는 테스트 중이다. 콘솔은 홈페이지·개인정보처리방침 링크·승인된 도메인이 채워져야 게시를 허용하므로, 프로덕션 게시는 운영 도메인 배포·공개 개인정보처리방침 페이지 준비 뒤 [배포 계획서 체크리스트](../06-배포/배포계획서.md#levelup-google-oauth-앱-프로덕션-게시-배포-후)로 수행한다. 소유자 Google sub 확보·Gmail 한도 등 나머지 운영 조건은 DEC-002 미결이다. 외부 사용자 유형의 Testing 상태에서는 Gmail scope가 포함된 refresh token이 7일 만료 조건에 해당하므로 개발 테스트 설정을 영구 연결로 가정하지 않는다. [OAuth token 만료 조건](https://developers.google.com/identity/protocols/oauth2#expiration), [Gmail scope](https://developers.google.com/workspace/gmail/api/auth/scopes). 콘솔 설정만 했으며 앱 코드로 실제 로그인·Gmail 연결·발송은 아직 수행하지 않았다.
 
-| 다이어그램 | 섹션 | 용도 |
-|-----------|------|------|
-| 시스템 컨텍스트 다이어그램 | 2.3 | 외부 시스템 연동 전체 뷰 |
-| 컨테이너 다이어그램 | 2.4 | 시스템 내부 구성 요소 |
-| 컴포넌트 다이어그램 | 2.5 | API Server 내부 모듈 |
-| 배포 다이어그램 | 4.1 | 인프라 배포 구조 |
-| CI/CD 파이프라인 | 4.3 | 빌드/배포 프로세스 |
-| 인증 플로우 | 6.2 | 인증/인가 흐름 |
+### 7.5 외부 AI 수동 인계
 
-### B. 기술 스택 요약
+블로그의 버튼은 공통 클라이언트 메모리에 원문 URL만 일시 전달하고 `/reports`로 이동한다. 리포트 화면이 소비 후 비우며 URL·요청문을 query·영속 저장·서버 로그에 넣지 않는다. 새로고침하면 입력을 다시 받는다. 직접 URL 입력도 동일한 로컬 검증을 사용한다. 마지막 서비스 이름만 localStorage에 저장한다. 복사와 공식 홈 열기는 독립된 사용자 동작이다. 외부 탭에는 `noopener noreferrer`, 앱에는 `Referrer-Policy: no-referrer`를 적용한다. 실제 문서 공개 여부·PDF 텍스트 여부는 앱에서 검사하지 않는다.
 
-| 계층 | 기술 |
-|------|------|
-| 프론트엔드 | [기술 목록] |
-| 백엔드 | [기술 목록] |
-| 데이터베이스 | [기술 목록] |
-| 인프라 | [기술 목록] |
-| 모니터링 | [기술 목록] |
-| CI/CD | [기술 목록] |
+## 부록 A. 요구사항 → 설계 연결
 
-### C. 관련 문서 링크
+API 번호와 DB 테이블, 화면은 각각 [API 설계](API설계서.md), [DB 설계](데이터베이스설계서.md), [화면 설계](화면설계서.md)의 동일 ID를 참조한다. 아래는 설계 연결이며 테스트 통과표가 아니다.
 
-| 문서 | 경로 |
-|------|------|
-| 요구사항 정의서 | [경로] |
-| 데이터베이스 설계서 | [경로] |
-| API 설계서 | [경로] |
-| 화면 설계서 | [경로] |
-| 상세 설계서 | [경로] |
+| FR | 모듈·설계 지점 | DB | API | 화면·UC |
+|---|---|---|---|---|
+| <a id="fr-001"></a>FR-001 | CMP-02 / ADR-003 | owner_settings, auth_sessions | API-001·002 | SCR-001 / UC-001 |
+| <a id="fr-002"></a>FR-002 | CMP-01 / 2.2·ADR-006 | 정적 섹션 등록. 테마는 브라우저 levelup.theme | API-003, 테마는 로컬 동작 | SCR-002·008 / UC-002·012 |
+| <a id="fr-003"></a>FR-003 | CMP-03 / 7.1 | sources | API-004 | SCR-005 / UC-003 |
+| <a id="fr-004"></a>FR-004 | CMP-03 / 7.2 | sources, subscription_epochs | API-006 | SCR-005 / UC-003 |
+| <a id="fr-005"></a>FR-005 | CMP-03 / ADR-005 | sources, subscription_epochs | API-007 | SCR-005 / UC-004 |
+| <a id="fr-006"></a>FR-006 | CMP-03·05 / 7.2·7.3 | sources, digest_items | API-008 | SCR-005 / UC-005 |
+| <a id="fr-007"></a>FR-007 | CMP-03·07 / 4.2 | job_runs, sources | 내부 JOB-01·02 | SCR-006 / UC-006 |
+| <a id="fr-008"></a>FR-008 | CMP-03 / 7.2 | articles, article_keys | 내부 JOB-01·02 | SCR-003 / UC-006 |
+| <a id="fr-009"></a>FR-009 | CMP-05 / ADR-005 | articles, digests | 내부 JOB-03 | SCR-003 / UC-007 |
+| <a id="fr-010"></a>FR-010 | CMP-04 | digests, digest_items, articles | API-009·012 | SCR-003 / UC-008 |
+| <a id="fr-011"></a>FR-011 | CMP-04 | articles, article_states | API-009 | SCR-003 / UC-008 |
+| <a id="fr-012"></a>FR-012 | CMP-04 | article_states | API-010 | SCR-003·004 / UC-009 |
+| <a id="fr-013"></a>FR-013 | CMP-04 / ADR-005 | article_states | API-010 | SCR-003·004 / UC-009 |
+| <a id="fr-014"></a>FR-014 | CMP-02·05 / 7.3 | owner_settings, gmail_connections, oauth_states | API-013·014·019~021 | SCR-008 / UC-010 |
+| <a id="fr-015"></a>FR-015 | CMP-05 / 7.3 | digests, digest_items, deliveries | 내부 JOB-03 | SCR-003·006 / UC-007 |
+| <a id="fr-016"></a>FR-016 | CMP-05 / 7.3 | deliveries | API-015·016 | SCR-006 / UC-007·011 |
+| <a id="fr-017"></a>FR-017 | CMP-05 | deliveries, job_runs | API-017 | SCR-008 / UC-010 |
+| <a id="fr-018"></a>FR-018 | CMP-07 / 4.3·CR-FLOW-001 | sources, collection_entry_issues, job_runs, digests, deliveries | API-011·015·022 | SCR-006 / UC-011 |
+| <a id="fr-019"></a>FR-019 | CMP-01·02 | 정적 섹션 등록 | 로컬 진입 | SCR-007 / UC-012 |
+| <a id="fr-020"></a>FR-020 | CMP-06 / 7.5 | 없음 · 로컬 메모리 | 로컬 REPORT-01 | SCR-007 / UC-013 |
+| <a id="fr-021"></a>FR-021 | CMP-06 / 7.5 | 없음 | 로컬 REPORT-02·03 | SCR-007 / UC-013 |
+| <a id="fr-022"></a>FR-022 | CMP-06 / 7.5 | 분석 이력 없음 | 서버 AI API 없음 | SCR-007 / UC-013 |
+| <a id="fr-023"></a>FR-023 | CMP-04 | articles.canonical_url | 직접 원문 링크 | SCR-003·004 / UC-008 |
+
+## 부록 B. 검토·후속 작업
+
+| 결정·확인 | 담당·시점 | 현재 상태 |
+|---|---|---|
+| ADR-001~004, 실제 OAuth·DB·메일·호스팅 | 구현 담당 제안·소유자 / G2 확정 전 | ADR-001·004 승인, ADR-002·003 정책 확정(2026-11-26). 실제 계정·프로젝트 설정 없음 |
+| ADR-005 및 무게시일·부분 피드 한계 | 소유자·구현 담당 / G1 수용 기준 보완·G2 전 | DEC-003·006 미결 |
+| 발송 세션 잠금·중단 복구·Gmail 불명확 발송 계약 | 구현 담당 / 상세 설계 및 통합 테스트 | 설계 제안, 실행 증빙 없음 |
+| 핵심 기록 자동 삭제 제외 정책의 무료 용량·백업 실행/보관·복원 검증 | 소유자·구현 담당 / 운영 구성 전 | 백업 주 1회·성공본 4개·장애 확인 후 24시간 복구 목표 확정, 실행/실측 등 나머지 DEC-007 미결 |
+| 테마 전체 상태/대비·확정 글꼴 로딩·실기기 조합 | 소유자·화면 구현 담당 / 전체 목업·구현 검증 전 | CR-UX-002 테마 범위 확인, DEC-008·ISSUE-001의 나머지 검증 미결 |
+| RTM 설계 열 동기화, 이후 코드·TC 연결 | 구현 담당 / 설계 검토 반영 시 | Gmail 추가 요청에 따라 PRD·00·01 및 RTM도 관련 범위 동기화 |
+
+G2 검토 대상은 요구사항 연결, 정책 미결 처리, 네 문서의 키·상태·화면/API 일관성이다. 현재 구현·성능·호환성·복구 시험 통과나 게이트 승인 기록은 없다.
+
+### 구현 변경 CR-IMP-001
+
+[04 인계서](../04-구현/구현-테스트-인계서.md)의 기본안은 Python API/worker·TypeScript 웹이다. PRD 8.1·8.3에 따라 FastAPI API는 Vercel, 정기 실행은 Vercel Schedules다. 상시 worker 호스트를 추가하지 않으며 유한 작업의 진입점·호출 보안·자원·복구와 프로젝트/라우팅은 검증이 남았다. Queues·Daemons는 이번 기준선에 채택하지 않았다. 사이트 OAuth state와 Gmail 연결 state는 DB purpose로 구분한다. 실제 구현·배포는 아직 없다.
+
+### CR-UX-001 홈/설정 확장 경계
+
+API-003은 기존 활성 sections와 tech 요약을 유지하고 homeCards를 추가해 공통 홈에서 기능별 summary와 ready/planned/unavailable 표시를 처리한다. planned는 inbox-summary·daily-news 두 ID에 한정하며 모듈 요약을 호출하지 않는다. 섹션 등록 정보의 홈 표시 여부로 ready 카드를 고르며, 첫 릴리스는 tech만 홈에 표시하고 reports는 sections에만 둔다(CR-UX-004). 일반/연결 계정/기능별 설정으로 UI를 나누되 현재 notificationsEnabled의 영향은 기술블로그 정기 메일로 한정한다. 새 기능별 알림·권한·데이터·job은 후속 기획으로 추가한다.
+
+### CR-UX-002 적용·검증 상태
+
+테마 제공 범위와 네 가지 보완은 사용자 확인, 전체 문서 게이트·목업/제품 실행은 미완료다. ADR-006과 UIX 7.6을 현재 기준으로 사용한다.
+
+### CR-FLOW-001 문서 적용 기준
+
+수집·날짜·발송 경계는 비즈니스정책서 11.7을 따른다.
+
+날짜 자격과 실제 snapshot 포함 시점은 비즈니스정책서 11.7의 경계를 따른다.
+
+API-022와 collection_entry_issues를 추가하고 기존 API ID·개인 상태·테마 결정을 유지한다. 이 변경과 BPD 11.7은 현재 확정 PRD 4.4와 일치해야 한다. 충돌 시 PRD를 임의로 덮어쓰지 않고 원인·영향을 검토해 정정한다.
+
+### CR-MIN-001 최소 구현 기준
+
+배포 구성·발송 최소화 범위는 서비스기획서의 CR-MIN-001 최소 구현 기준을 따른다.
+
+단일 외부 호출·실패 이월·불명확 예약은 비즈니스정책서의 CR-MIN-001 규칙을 따른다.
