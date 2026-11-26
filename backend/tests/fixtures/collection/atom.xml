@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:base="https://blog.example/articles/">
+<title>Atom 블로그</title>
+<entry xml:base="2026/"><id>urn:entry:1</id><title>Atom 글</title><link rel="self" href="/api/1"/><link href="post?x=1&amp;y=2"/><published>2026-11-25T23:59:59+09:00</published><updated>2026-11-26T10:00:00+09:00</updated><summary type="html">&lt;p&gt;짧은 소개&lt;/p&gt;</summary><category term="행사"/><category term="행사"/></entry>
+<entry><id>urn:entry:2</id><title>날짜 누락</title><link href="/second"/><updated>2026-11-26T10:00:00Z</updated></entry>
+</feed>

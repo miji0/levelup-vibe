@@ -1,0 +1,52 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "web": {
+      "root": "apps/web/",
+      "framework": "nextjs"
+    },
+    "api": {
+      "root": "backend/",
+      "entrypoint": "main:app",
+      "functions": {
+        "main.py": {
+          "maxDuration": 300
+        }
+      }
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "api"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "web"
+      }
+    }
+  ],
+  "schedules": {
+    "hourly": {
+      "schedule": "0 * * * *",
+      "timezone": "Asia/Seoul",
+      "path": "/api/internal/schedules/hourly",
+      "requestMethod": "POST"
+    },
+    "final": {
+      "schedule": "30 7 * * *",
+      "timezone": "Asia/Seoul",
+      "path": "/api/internal/schedules/final",
+      "requestMethod": "POST"
+    },
+    "digest": {
+      "schedule": "0 8 * * *",
+      "timezone": "Asia/Seoul",
+      "path": "/api/internal/schedules/digest",
+      "requestMethod": "POST"
+    }
+  }
+}

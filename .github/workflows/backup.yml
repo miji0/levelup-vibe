@@ -1,0 +1,69 @@
+name: Encrypted weekly database backup
+on:
+  schedule:
+    - cron: '0 18 * * 0'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: github.event.repository.private && vars.BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.10.8'
+          python-version: '3.12'
+      - run: uv sync --project backend --frozen
+      - name: Install matching PostgreSQL 17 client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+      - name: Create authenticated encrypted dump and verify archive
+        run: |
+          backend/.venv/bin/python -m levelup.backup create backups/database.lup
+          backend/.venv/bin/python -m levelup.backup verify backups/database.lup
+      - uses: actions/upload-artifact@v4
+        id: backup
+        with:
+          name: levelup-db-${{ github.run_id }}-${{ github.run_attempt }}
+          path: backups/database.lup
+          retention-days: 400
+          if-no-files-found: error
+          compression-level: 0
+      - name: Download the uploaded object before rotation
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.backup.outputs.artifact-id }}
+          path: backups/downloaded
+      - name: Verify uploaded bytes and decryption
+        run: |
+          cmp backups/database.lup backups/downloaded/database.lup
+          backend/.venv/bin/python -m levelup.backup verify backups/downloaded/database.lup
+      - name: Keep four newest successful backups only after upload verification
+        uses: actions/github-script@v7
+        env:
+          NEW_ARTIFACT_ID: ${{ steps.backup.outputs.artifact-id }}
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {...context.repo, per_page: 100});
+            const candidates = artifacts.filter(a => /^levelup-db-\d+-\d+$/.test(a.name) && !a.expired);
+            const successful = [];
+            for (const a of candidates) {
+              if (String(a.id) === process.env.NEW_ARTIFACT_ID) { successful.push(a); continue; }
+              const run = await github.rest.actions.getWorkflowRun({...context.repo, run_id: a.workflow_run.id});
+              if (run.data.conclusion === 'success') successful.push(a);
+            }
+            successful.sort((a,b) => b.created_at.localeCompare(a.created_at) || b.id-a.id);
+            if (!successful.some(a => String(a.id) === process.env.NEW_ARTIFACT_ID)) throw new Error('New backup missing; refuse deletion');
+            for (const a of successful.slice(4)) await github.rest.actions.deleteArtifact({...context.repo, artifact_id:a.id});
