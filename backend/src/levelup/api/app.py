@@ -17,6 +17,7 @@ from starlette.exceptions import HTTPException
 from levelup.api.errors import ApiError
 from levelup.api.tech import create_tech_router, register_errors
 from levelup.core.config import Settings
+from levelup.core.sections import home_cards, menu_sections
 from levelup.core.security import Cipher, digest, random_token, safe_return_to
 from levelup.infra.db import engine_for
 from levelup.infra.google import GMAIL_SCOPE, Google
@@ -355,6 +356,7 @@ def create_app(
                     "provider": "google",
                 },
                 "csrfToken": current["csrf_token"],
+                "sections": menu_sections(),
             }
         }
 
@@ -381,10 +383,7 @@ def create_app(
         )["data"]
         return {
             "data": {
-                "sections": [
-                    {"id": "tech", "label": "기술블로그", "path": "/tech"},
-                    {"id": "reports", "label": "리포트 분석", "path": "/reports"},
-                ],
+                "sections": menu_sections(),
                 "tech": {
                     "digestDate": view["date"],
                     "count": view["fullCount"],
@@ -392,32 +391,7 @@ def create_app(
                     "state": view["state"],
                     "reasonCode": view["reasonCode"],
                 },
-                "homeCards": [
-                    {
-                        "id": "tech",
-                        "label": "기술블로그",
-                        "status": "ready",
-                        "path": "/tech",
-                        "description": "구독한 출처의 새 글을 한곳에서 확인합니다.",
-                        "summary": "오늘의 브리핑과 수집한 전체 글을 확인하세요.",
-                    },
-                    {
-                        "id": "inbox-summary",
-                        "label": "수신 이메일 요약",
-                        "status": "planned",
-                        "path": None,
-                        "description": "준비 중 · 아직 상세 설계 전인 기능입니다.",
-                        "summary": None,
-                    },
-                    {
-                        "id": "daily-news",
-                        "label": "데일리 기사 요약",
-                        "status": "planned",
-                        "path": None,
-                        "description": "준비 중 · 아직 상세 설계 전인 기능입니다.",
-                        "summary": None,
-                    },
-                ],
+                "homeCards": home_cards(),
             }
         }
 

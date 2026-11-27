@@ -10,6 +10,8 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 MAGIC = b"LEVELUP-BACKUP-v1\0"
 
@@ -103,6 +105,23 @@ def main():
                     ],
                     postgres_env(target),
                 )
+                engine = None
+                try:
+                    engine = create_engine(
+                        target.replace("postgresql://", "postgresql+psycopg://", 1)
+                    )
+                    with engine.begin() as conn:
+                        conn.execute(
+                            text("""UPDATE auth_sessions SET revoked_at=clock_timestamp()
+                            WHERE revoked_at IS NULL""")
+                        )
+                except SQLAlchemyError:
+                    raise RuntimeError(
+                        "Restored session revocation failed; credentials withheld"
+                    ) from None
+                finally:
+                    if engine is not None:
+                        engine.dispose()
     print("Encrypted backup " + args.mode + " completed")
 
 

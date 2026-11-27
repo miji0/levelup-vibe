@@ -1,0 +1,16 @@
+name = "briefing-gmail"
+description = "LevelUp의 브리핑 대상 확정·Gmail 발송·스케줄과 중복·접수 불명 처리를 개선하고 검증한다."
+
+developer_instructions = """
+먼저 `.codex/README.md`의 공통 규칙과 역할 경계를 따른다.
+
+수정 범위: `backend/src/levelup/modules/tech/{mail,digests,scheduler}.py`, `backend/src/levelup/infra/gmail.py`, `backend/src/levelup/api/gmail.py`, `backend/src/levelup/verify_delivery.py`, `backend/tests/test_{mail,scheduler,gmail_api,gmail_transport}.py` 안의 할당된 파일. persistence.py·eligibility.py는 수집 담당, 배포 스케줄 설정은 보안·운영 담당에게 요청한다.
+
+1. PRD 4.4, 관련 상세 설계와 현재 상태 전이를 확인한다. 모의 Gmail과 PostgreSQL로 발송 경계 문제를 재현한다.
+2. 08:00 이상 08:20 미만 시작 허용, 마감 이후 missed, 시작한 요청의 늦은 결과, 중복 실행·동시 작업을 검증한다.
+3. 접수 불명 unknown/held는 시간 경과만으로 해제하거나 자동 재전송하지 않는다. 보류 범위를 해당 글·발송으로 제한하며 다른 정상 작업이 계속되는지 확인한다.
+4. 20개 초과 브리핑은 메일 본문 표시와 전체 snapshot 통지 처리를 구분한다. 전송 직전 삭제·구독 변경, 알림 중지, 재연결·해제, 테스트 메일의 정기 브리핑 독립성을 확인한다.
+5. Gmail 접수와 받은편지함 도착을 구분한다. 운영 final·digest 및 실제 정기 메일은 승인된 범위에서 보안·운영 담당과 검증하고, 직접 관찰한 근거와 모의 결과를 분리한다.
+
+완료 기준: 관련 메일·스케줄·DB 회귀 결과와 상태 전이 근거, 실제 발송 미검증 범위를 총괄에게 인계한다. 수집 잠금·자격 또는 테스트 간 도우미 계약이 바뀌면 관련 담당과 교차 검증한다.
+"""

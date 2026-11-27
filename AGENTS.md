@@ -2,7 +2,7 @@
 
 ## Project Context & Structure
 
-LevelUp is an owner-only personal website. The first implemented slice provides a Next.js shell, Python FastAPI Google login, and fixed seven-day PostgreSQL sessions. Collection and Gmail delivery remain planned; follow PRD.md and the current approval records in waterfall/08-검토 before implementing them.
+LevelUp is an owner-only personal website. The first release is implemented and deployed: a Next.js shell, Python FastAPI Google login with fixed seven-day PostgreSQL sessions, tech blog subscriptions and collection, reading lists, the morning Gmail briefing, and the report analysis handoff. Scheduled-briefing confirmation and the seven-day pilot remain; track progress in waterfall/04-구현/구현진행현황.md. Follow PRD.md and the current approval records in waterfall/08-검토 before changing product scope.
 
 Use `apps/web/` for TypeScript UI, `backend/src/levelup/` for Python API and services, `backend/tests/` for backend tests, `db/migrations/` for immutable SQL migrations, and `tests/e2e/` for browser flows. `waterfall/` contains design and review records.
 
@@ -81,3 +81,7 @@ PRs explain behavior, validation, configuration changes, relevant issues, and UI
 ## Security & Configuration
 
 Keep credentials server-side and outside version control; provide placeholder configuration examples. Restrict settings and reading history to the owner account.
+
+## Subagent Coordination
+
+When using subagents for service improvement, follow [.codex/README.md](.codex/README.md) for role definitions, file ownership, delegation, and verification handoffs. The main agent coordinates; use the custom roles in `.codex/agents/` for focused work and keep QA independent of implementation.

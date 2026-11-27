@@ -3,8 +3,8 @@
 | 항목 | 내용 |
 |---|---|
 | 프로젝트 | LevelUp — 개인용 웹사이트 / 모닝 테크 |
-| 문서 ID | API-LEVELUP-v0.10 |
-| 작성일·버전 | 2026-11-26 / v0.10 |
+| 문서 ID | API-LEVELUP-v0.11 |
+| 작성일·버전 | 2026-11-27 / v0.11 |
 | 작성자 | Codex — 사용자 요청과 저장소 자료 기반 |
 | 상태 | 검토용 설계 초안. G0·G1·G2 승인 기록 없음 |
 | 검토·승인 담당 | 사이트 소유자. 고정 출시일 없이 실제 검토 수행 시 일자 기록 |
@@ -19,6 +19,7 @@
 | v0.8 | 2026-11-26 | 00~04 미결·권장안 통합, 확정/설계/환경/검증/후속 보류 구분·잔여 문구/참조 정정. 권장안 미채택·실행 미검증 | 정정 요청 반영 / 개별 문서 미승인 |
 | v0.9 | 2026-11-26 | G2 검토 결정 반영(PRD v0.29): 웹·API 한 Vercel 프로젝트·같은 origin, OAuth 앱 프로덕션 게시(검증 미신청) | 소유자 결정 / G2 전체 승인 전 |
 | v0.10 | 2026-11-26 | 사용자 채택: Services 한 프로젝트·DB 저장 세션(auth_sessions 추가, 총 14개)·외부 클라우드 자동 백업. 실제 설정/검증은 미완료 | 세 가지 설계 사용자 채택 / 전체 단계 미승인 |
+| v0.11 | 2026-11-27 | API-002에 `sections` 추가. 셸 메뉴와 API-003 홈이 같은 섹션 등록 정보(CMP-01)를 사용 | 소유자 채택(session 응답 확장안) / 전체 단계 미승인 |
 
 ## 참고 문서와 적용 기준
 
@@ -66,7 +67,7 @@ source/article/digest/delivery/job ID가 현재 소유자의 관계에 속하는
 | ID | Method · 경로 | 주요 책임 | FR·SCR |
 |---|---|---|---|
 | API-001 | Python OAuth·세션 `/api/auth/*` | 로그인·callback·로그아웃, 구체 메서드는 라이브러리 계약 | FR-001 / SCR-001 |
-| API-002 | GET /session | owner 최소 정보·CSRF token | FR-001 / 공통 |
+| API-002 | GET /session | owner 최소 정보·CSRF token·메뉴 섹션 | FR-001 / 공통 |
 | API-003 | GET /home | 활성 sections·기능별 homeCards·준비 카드 2개 | FR-002 / SCR-002 |
 | API-004 | POST /tech/sources/resolve | 공개 연결 확인·피드 후보 반환 | FR-003 / SCR-005 |
 | API-005 | GET /tech/sources | active/paused 출처·상태 목록 | FR-003~006 / SCR-005 |
@@ -97,7 +98,7 @@ source/article/digest/delivery/job ID가 현재 소유자의 관계에 속하는
 API-001의 사이트 인증 경로는 `/api/auth/signin`(GET), `/api/auth/callback/google`(GET), `/api/auth/signout`(POST)로 Python에 구현하는 안이다. 로그인 전 바인딩 cookie와 site_login state를 확인한 뒤 소유자 subject에 대해서만 보호된 세션을 발급한다. 기존 Auth.js 클라이언트를 요구하지 않으며 브라우저 공개 경로·소유자 제약은 유지한다. 실제 라이브러리·callback URI는 배포 전 검증한다.
 
 
-API-002는 기존 `{owner:{id,email,provider:"google"},csrfToken}`을 반환한다. csrfToken은 현재 auth_sessions의 값을 사용하고 raw 세션 token/hash는 JSON에 반환하지 않는다. email은 검증된 로그인 계정이며 연결 해제 후에도 표시한다. 사이트 인증용 공급업체 자격증명은 없다. API-003은 기존 `sections:[{id,label,path}]`, `tech:{digestDate,count,isPreview}`를 유지하고 `homeCards:[{id,label,status,path,description,summary}]`를 추가한다. count는 오늘 브리핑 기준이며 수집 호출 횟수가 아니다. reports는 sections에 항상 포함하고 homeCards에는 넣지 않는다(CR-UX-004). tech 요약 조회 실패 시 해당 카드에 unavailable을 표시하고 다른 섹션 탐색은 유지한다. CR-FLOW-001로 tech에 state/reasonCode를 추가하고 count는 number 또는 null로 정의한다. isPreview=true이면 API-012의 예상 건수, 확정 후에는 실제 건수, missed/not_scheduled면 null이다. 조회가 정상인 missed는 unavailable 오류로 바꾸지 않고 준비된 기술블로그 카드의 요약에 “작업 시작 누락”을 표시한다.
+API-002는 기존 `{owner:{id,email,provider:"google"},csrfToken}`에 `sections:[{id,label,path}]`를 더해 반환한다. sections는 API-003과 같은 섹션 등록 정보에서 만든 같은 값이며, 셸은 이 값으로 메뉴를 구성해 화면마다 홈 조회를 반복하지 않는다. csrfToken은 현재 auth_sessions의 값을 사용하고 raw 세션 token/hash는 JSON에 반환하지 않는다. email은 검증된 로그인 계정이며 연결 해제 후에도 표시한다. 사이트 인증용 공급업체 자격증명은 없다. API-003은 기존 `sections:[{id,label,path}]`, `tech:{digestDate,count,isPreview}`를 유지하고 `homeCards:[{id,label,status,path,description,summary}]`를 추가한다. count는 오늘 브리핑 기준이며 수집 호출 횟수가 아니다. reports는 sections에 항상 포함하고 homeCards에는 넣지 않는다(CR-UX-004). tech 요약 조회 실패 시 해당 카드에 unavailable을 표시하고 다른 섹션 탐색은 유지한다. CR-FLOW-001로 tech에 state/reasonCode를 추가하고 count는 number 또는 null로 정의한다. isPreview=true이면 API-012의 예상 건수, 확정 후에는 실제 건수, missed/not_scheduled면 null이다. 조회가 정상인 missed는 unavailable 오류로 바꾸지 않고 준비된 기술블로그 카드의 요약에 “작업 시작 누락”을 표시한다.
 
 
 API-001의 최초 로그인 요청은 `openid email https://www.googleapis.com/auth/gmail.send`와 offline access를 함께 요청한다. 일회성 state·pre-login 바인딩·PKCE·nonce·ID token 검증과 고정 owner sub 비교를 마친 뒤 세션을 발급한다. 실제 granted scope와 refresh token(또는 동일 sub의 기존 유효 token)을 확인한 경우에만 발송 연결을 저장한다. 발송 scope만 누락된 성공 로그인은 disconnected 연결 행·검증 이메일을 저장하고 권한 필요를 안내한다. 전체 동의 취소·OIDC 실패는 로그인 실패다. 기존 연결 행이 있는 일반 로그인은 `openid email`만 요청하고 연결 상태/token을 복원하지 않는다. 연결 이메일이 달라지면 reauth_required로 전환한다. 최초 연결 저장도 기존 소유자 발송 잠금·connection version 규칙을 사용하고 정기 알림을 자동으로 켜지 않는다.

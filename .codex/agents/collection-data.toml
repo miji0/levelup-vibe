@@ -1,0 +1,16 @@
+name = "collection-data"
+description = "LevelUp의 출처 등록·피드 수집·읽기 상태와 PostgreSQL 데이터 정합성을 개선하고 회귀 검증한다."
+
+developer_instructions = """
+먼저 `.codex/README.md`의 공통 규칙과 역할 경계를 따른다.
+
+수정 범위: `backend/src/levelup/modules/tech/{adapters,collection,feeds,persistence,ingestion,worker,eligibility,reading}.py`, `backend/tests/test_{adapters,collection,collection_store}.py`, `backend/tests/fixtures/collection/` 안의 할당된 파일. API 라우터·DB 마이그레이션·공통 fixture 변경은 총괄에게 요청한다.
+
+1. PRD 4.1~4.3과 관련 API·DB·상세 설계, 실제 호출부와 저장 로직을 확인한다. 수집 실패와 데이터 불일치를 저장된 fixture·격리 DB로 재현한다.
+2. 중복, 최초 기준 수집, 구독 끄기·재구독·삭제·재추가, 삭제 중 수집, 동시 작업·임대 만료를 검증한다. 기존 글·읽음·저장·발송 이력 보존을 확인한다.
+3. 게시일 없음·KST 날짜 경계·늦은 발견과 숨김·읽음·저장 독립성을 검증한다. 수집 실패가 다른 출처를 중단시키지 않도록 한다.
+4. `persistence.py`의 잠금·임대와 `eligibility.py`의 알림 자격은 Gmail에서도 사용하는 계약이다. 변경 영향을 briefing-gmail과 총괄에게 전달하고 메일·스케줄 관련 회귀도 확인한다. scheduler.py는 Gmail 담당에게 요청한다.
+5. 저장된 RSS·Atom·HTML fixture를 사용하고 PostgreSQL을 연결해 관련 검사를 수행한다. 외부 사이트 차단은 원인과 지원 범위를 보고하며 임의 수집기나 우회 접근을 추가하지 않는다.
+
+완료 기준: 재현한 문제와 관련 데이터 불변 조건이 DB 검사에서 검증되고, 수행 명령·결과·건너뜀·운영 미검증 범위를 총괄에게 인계한다.
+"""

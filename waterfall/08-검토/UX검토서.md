@@ -841,3 +841,36 @@ SCR-001 로그인·SCR-002 첫 방문 홈·SCR-008 설정의 기반 화면에 �
 | 남은 범위 | 구독/Gmail 미연동 제어 비활성·설명 표시. 채워진 홈/글 목록/리포트/모든 상태별 대비·실제 Google·Safari 실기기는 이번 완료 범위 밖 |
 
 코드는 확정 Pretendard와 44px 조작 영역을 따른다. 첫 방문의 상시 리포트 메뉴·늦게 발견한 과거 글 정책은 확정 PRD를 우선한다. Figma 임시 서체 교체는 소유자 후속 작업이며 이번에 Figma를 수정하지 않았다. 기반 범위 검증을 전체 화면 디자인/제품 UX 인수 승인으로 확대하지 않는다.
+
+## 서브에이전트 UX 검증 보충 (2026-11-27)
+
+`7942f05` 애플리케이션을 수정 없이 검증했다. 기존 E2E 16개와 별도 결함 관찰 4회를 구분하며, 전체 실행·결함 목록은 [테스트 결과 9장](../05-테스트/테스트결과보고서.md#9-서브에이전트-서비스-검증-2026-11-27)에 기록했다.
+
+| 항목 | 이번 확인 |
+| --- | --- |
+| Figma 원본 | `GhMsLi8oyVJDNNQkZ4sUrf`를 공식 도구로 읽기 전용 조회. 6:91 기술글 Desktop Dark, 8:679 구독 Desktop Dark, 9:823 상태 Desktop Dark, 9:1065 리포트 Desktop Dark, 11:1205 기술글 Mobile Dark |
+| 실제 육안 대조 범위 | 기술글 Mobile Dark·상태 Desktop Dark·리포트 Desktop Dark의 레이아웃·정보 위계. 원본 조회만 한 노드를 대조 완료로 세지 않음 |
+| 네 조합 실행 | Chromium 1280 / WebKit 390 × Dark/Light 기존 E2E 캡처 38개. `/private/tmp/levelup-web-validation/existing-e2e-results/`에 임시 보관. 캡처 생성과 Figma 일치 판정은 구분 |
+| 모바일 차이 SV-003 | WebKit 390 두 테마에서 필터 select 약 53×21px·선택값 잘림. 44px 조작 높이 미충족. Desktop Chromium은 98~126×44px |
+| 리포트 차이 SV-002·004 | URL 변경 뒤 오래된 요청문 복사/열기가 활성·안내 없음. 최초 AI 선택을 요구하지 않고 ChatGPT가 자동 선택됨. 두 브라우저에서 재현 |
+| 추가 캡처 | `/private/tmp/levelup-web-validation/results/`의 reports-stale-prompt 및 filters-dark/light 총 6개. 상세 상대 경로는 테스트 결과 9장 참고 |
+| 수정 | 이번에는 없음. Figma 원본도 수정하지 않음 |
+| 미검증 | 라이트 Figma 대조, 나머지 화면·상태의 완전 대조, 정밀 대비·키보드 전체 흐름, 실제 iPhone Safari·Gmail |
+
+**판정: 디자인 미검증.** 일부 원본 대조와 네 조합 기능 실행은 확인했으나 차이 수정과 전체 필수 대조를 마치지 않았다. 앞선 기반 화면의 과거 검증 기록을 삭제하거나 전체 서비스 완료로 확대하지 않는다. Next.js 검증 실행이 만든 임시 TS 설정 변경은 복구하고 `.next-verify`는 정리했으며 캡처는 `/private/tmp`에 보존했다.
+
+## 오류 수정 후 UX 확인 (2026-11-27)
+
+SV-002·003·004를 `error-fixer` 지침을 적용한 프론트 담당이 수정했다. [테스트 결과 10장](../05-테스트/테스트결과보고서.md#10-오류-수정-에이전트-보완-결과-2026-11-27)에 실패 재현·보완·최종 실행을 기록했다.
+
+| 항목 | 수정 후 확인 |
+| --- | --- |
+| Figma | `GhMsLi8oyVJDNNQkZ4sUrf`의 6:91·11:1205 기술글 Desktop/Mobile, 9:1065·15:1580 리포트 Desktop/Mobile을 읽기 전용 조회·대조. 원본은 다크 4프레임 기준이며 수정하지 않음 |
+| 순서 | 원본 대조 → 앱의 필터·provider·stale 제어 보완 → 다크/라이트 × 1280/390 캡처·육안 검토·회귀 검사 |
+| 필터 | WebKit 390 두 테마에서 높이 45px·폭 254/152/152px. 전체 선택값 표시·가로 넘침 없음. 기존 Figma `ab76a.svg` 16px 화살표 재사용, 테마별 색상 확인 |
+| 리포트 | 최초 서비스 선택 안내·비활성 복사/열기, 유효 저장값 복원 확인. URL 변경 시 편집 요청문 보존·중립 안내, 무효 재생성 시 오류·비활성, 유효 재생성 후 제어 복구 확인 |
+| 캡처 | `/private/tmp/levelup-fix-web-results-green/` 총 46개. `features-article-filters-k-4c46c-44px-targets-in-both-themes-{desktop-chromium,mobile-webkit}/{dark,light}-filters.png`, `features-reports-preserve--b6325-d-invalid-document-handoffs-{desktop-chromium,mobile-webkit}/{dark,light}-reports-stale.png`, 기존 화면 캡처 포함 |
+| 검사 | E2E 22개·skip 0, 웹 단위 10개, lint·typecheck·build 통과. 새 필터 검사는 실제 조작 높이와 텍스트 가용 폭을 단언 |
+| 남은 차이·한계 | 기존 화면의 문구·단계 스타일·필터 구성과 원본의 차이는 이번 3개 결함 외 전면 보정하지 않음. 모바일 필터는 글자·조작 영역 확보를 위해 줄바꿈함. 정밀 대비·실기기·모든 상태의 완전 대조 및 전체 화면 디자인 인수는 미검증 |
+
+**판정: 요청한 UX 결함 3건은 보완·회귀 확인. 전체 화면 디자인은 미검증 상태를 유지한다.** 별도 상세 기록이 없는 상태를 검증 완료로 확대하지 않으며 실제 Safari와 외부 AI 서비스의 문서 읽기 성공은 이번 검사의 대상이 아니다.

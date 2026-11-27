@@ -60,6 +60,7 @@ export async function apiPage<T>(
 export type Session = {
   owner: { id: string; email: string; provider: "google" };
   csrfToken: string;
+  sections: { id: string; label: string; path: string }[];
 };
 export type Home = {
   tech: {
