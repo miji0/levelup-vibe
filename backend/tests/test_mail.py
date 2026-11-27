@@ -1,3 +1,5 @@
+import html
+import re
 from datetime import date, datetime, timedelta
 from email import policy
 from email.parser import BytesParser
@@ -101,6 +103,7 @@ async def test_zero_twenty_twentyone_one_request_and_whole_snapshot_notified(
     db, settings, owner, gmail, clock, count
 ):
     await collect_pending(db, owner, count)
+    execute(db, "UPDATE articles SET title='기술 & 새 소식 <자료> ' || title")
     mail = service(db, settings, gmail, clock)
     mail.enqueue_digest(owner, DAY)
     assert await mail.run_next(owner) == ("accepted" if count else "empty")
@@ -118,14 +121,22 @@ async def test_zero_twenty_twentyone_one_request_and_whole_snapshot_notified(
         message = BytesParser(policy=policy.default).parsebytes(gmail.calls[0])
         assert message["From"] == message["To"] == "owner@example.com"
         assert f"{count}개" in message["Subject"]
-        assert f"/tech?date={DAY}" in message.get_body(preferencelist=("html",)).get_content()
-        assert (
-            all(
-                i["title_snapshot"] in message.as_string() or i["shown_in_email"] is False
-                for i in items
-            )
-            is not None
-        )
+        html_body = message.get_body(preferencelist=("html",)).get_content()
+        plain_body = message.get_body(preferencelist=("plain",)).get_content()
+        shown = [i for i in items if i["shown_in_email"]]
+        full_link = f"{settings.app_origin}/tech?date={DAY}"
+        links = [
+            (html.unescape(url), html.unescape(title))
+            for url, title in re.findall(r'<a href="([^"]+)">([^<]*)</a>', html_body)
+        ]
+        assert links == [(i["url_snapshot"], i["title_snapshot"]) for i in shown] + [
+            (full_link, "전체 글 보기")
+        ]
+        assert [line[2:] for line in plain_body.splitlines() if line.startswith("- ")] == [
+            i["title_snapshot"] for i in shown
+        ]
+        assert f"전체 {count}개" in html_body and f"전체 {count}개" in plain_body
+        assert full_link in plain_body
     mail.enqueue_digest(owner, DAY)
     assert await mail.run_next(owner) is None
     assert len(gmail.calls) == (1 if count else 0)

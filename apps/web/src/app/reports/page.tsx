@@ -6,10 +6,15 @@ import { documentUrl, reportPrompt } from "@/modules/reports/prompt";
 export default function ReportsPage() {
   const [url, setUrl] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [provider, setProvider] = useState("chatgpt");
+  const [promptUrl, setPromptUrl] = useState("");
+  const [provider, setProvider] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const text = useRef<HTMLTextAreaElement>(null);
+  const stale = Boolean(prompt && url !== promptUrl);
+  const canUsePrompt = Boolean(
+    prompt.trim() && promptUrl && !stale && provider,
+  );
   useEffect(() => {
     let active = true;
     queueMicrotask(() => {
@@ -19,13 +24,14 @@ export default function ReportsPage() {
         setUrl(handoff);
         try {
           setPrompt(reportPrompt(documentUrl(handoff)));
+          setPromptUrl(handoff);
         } catch {
           /* Validate in form. */
         }
       }
       try {
-        if (localStorage.getItem("levelup-report-provider") === "claude")
-          setProvider("claude");
+        const saved = localStorage.getItem("levelup-report-provider");
+        if (saved === "chatgpt" || saved === "claude") setProvider(saved);
       } catch {
         /* Optional preference. */
       }
@@ -39,6 +45,7 @@ export default function ReportsPage() {
     setMessage("");
     try {
       setPrompt(reportPrompt(documentUrl(url)));
+      setPromptUrl(url);
       setError("");
     } catch {
       setError(
@@ -47,6 +54,7 @@ export default function ReportsPage() {
     }
   }
   async function copy() {
+    if (!canUsePrompt) return;
     try {
       await navigator.clipboard.writeText(prompt);
       setError("");
@@ -85,6 +93,7 @@ export default function ReportsPage() {
             onChange={(e) => {
               setUrl(e.target.value);
               setMessage("");
+              setError("");
             }}
             maxLength={2048}
             placeholder="https://example.com/report.pdf"
@@ -109,6 +118,7 @@ export default function ReportsPage() {
                 name="provider"
                 value={value}
                 checked={provider === value}
+                required
                 onChange={() => {
                   setProvider(value);
                   try {
@@ -122,12 +132,21 @@ export default function ReportsPage() {
             </label>
           ))}
         </fieldset>
+        {!provider && (
+          <p className="muted">사용할 AI 서비스를 먼저 선택해주세요.</p>
+        )}
         <div>
           <button className="secondary" type="submit">
             <Icon name="refresh" />
             {prompt ? "요청문 다시 만들기" : "요청문 만들기"}
           </button>
         </div>
+        {stale && (
+          <p className="muted" role="status">
+            문서 URL이 변경되었습니다. 편집한 요청문은 유지되며, 다시 만들기
+            전에는 복사하거나 외부 서비스에서 열 수 없습니다.
+          </p>
+        )}
         <label>
           요약 요청문
           <textarea
@@ -150,25 +169,37 @@ export default function ReportsPage() {
           <button
             className="primary"
             type="button"
-            disabled={!prompt.trim()}
+            disabled={!canUsePrompt}
             onClick={copy}
           >
             <Icon name="copy" />
             요청문 복사
           </button>
-          <a
-            className="secondary"
-            href={
-              provider === "claude"
-                ? "https://claude.ai/"
-                : "https://chatgpt.com/"
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Icon name="external" />
-            {provider === "claude" ? "Claude" : "ChatGPT"}에서 열기
-          </a>
+          {canUsePrompt ? (
+            <a
+              className="secondary"
+              href={
+                provider === "claude"
+                  ? "https://claude.ai/"
+                  : "https://chatgpt.com/"
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Icon name="external" />
+              {provider === "claude" ? "Claude" : "ChatGPT"}에서 열기
+            </a>
+          ) : (
+            <button className="secondary" type="button" disabled>
+              <Icon name="external" />
+              {provider === "claude"
+                ? "Claude"
+                : provider === "chatgpt"
+                  ? "ChatGPT"
+                  : "AI 서비스"}
+              에서 열기
+            </button>
+          )}
         </div>
         {message && (
           <p className="status-message" role="status">
