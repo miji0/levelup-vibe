@@ -65,6 +65,16 @@ def adapter_for_url(url: str) -> ListAdapter | None:
     )
 
 
+# Publishers whose feed lives at a non-standard path. A listed URL is only a lead: it still has
+# to parse as a usable feed before it is offered.
+KNOWN_FEEDS = {"d2.naver.com": "https://d2.naver.com/d2.atom"}
+
+
+def known_feed_for_url(url: str) -> str | None:
+    host = urlsplit(normalize_url(url)).hostname
+    return KNOWN_FEEDS.get(host) if host else None
+
+
 def parse_list(body: bytes, adapter: ListAdapter) -> ParsedFeed:
     if len(body) > MAX_BODY_BYTES:
         raise CollectionError("RESPONSE_TOO_LARGE")

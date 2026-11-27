@@ -1,13 +1,23 @@
 """Collection core. Database generations, leases and transactions belong to the job caller."""
 
+import asyncio
 import hashlib
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from levelup.infra.public_http import CollectionError, PublicResponse, SafePublicHTTP
-from levelup.modules.tech.adapters import adapter_for_url, parse_list
-from levelup.modules.tech.feeds import EntryIssue, ParsedFeed, discover_feeds, parse_feed
+from levelup.modules.tech.adapters import adapter_for_url, known_feed_for_url, parse_list
+from levelup.modules.tech.feeds import (
+    EntryIssue,
+    ParsedFeed,
+    discover_feeds,
+    parse_feed,
+    probe_candidates,
+)
+
+# Whole-fallback time budget (seconds) for pages that advertise no feed.
+PROBE_BUDGET = 20.0
 
 
 @dataclass(frozen=True)
@@ -129,7 +139,7 @@ class CollectionCore:
             response.body, response.url, max_candidates=self.contract.max_candidates
         )
         if not urls:
-            raise CollectionError("UNSUPPORTED_SOURCE")
+            return await self._resolve_without_advertised_feed(input_url, response.url)
         options: dict[str, FeedOption] = {}
         errors = []
         for url in urls:
@@ -144,8 +154,54 @@ class CollectionCore:
             except CollectionError as exc:
                 errors.append(exc.code)
         if not options:
-            raise CollectionError("INVALID_FEED")
+            # The page advertised links but none is a usable feed (e.g. an alternate pointing back
+            # at the page itself): guess common paths too, and keep the original verdict if nothing
+            # is found.
+            try:
+                return await self._resolve_without_advertised_feed(input_url, response.url)
+            except CollectionError:
+                raise CollectionError("INVALID_FEED") from None
         return Resolution(input_url, tuple(options.values()), tuple(errors))
+
+    async def _resolve_without_advertised_feed(self, input_url: str, page_url: str) -> Resolution:
+        """Same-origin guesses, then a reviewed lead for the host; only a parsed feed counts."""
+        candidates = list(probe_candidates(page_url))
+        known = known_feed_for_url(page_url)
+        if known and known not in candidates:
+            candidates.append(known)
+        option = await self._first_usable_feed(candidates)
+        if option is None:
+            raise CollectionError("UNSUPPORTED_SOURCE")
+        return Resolution(input_url, (option,))
+
+    async def _first_usable_feed(self, candidates: list[str]) -> FeedOption | None:
+        tasks = [asyncio.ensure_future(self._try_feed(url)) for url in candidates]
+        try:
+            async with asyncio.timeout(PROBE_BUDGET):
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+        except TimeoutError:
+            # Keep whatever finished in time and drain the cancelled rest.
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            results = [
+                None if task.cancelled() else task.exception() or task.result() for task in tasks
+            ]
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
+        # Candidate order is priority, so the answer does not depend on which probe returns first.
+        return next((result for result in results if isinstance(result, FeedOption)), None)
+
+    async def _try_feed(self, url: str) -> FeedOption | None:
+        try:
+            response = await self.http.fetch(url)
+            feed = await self._parse(response)
+        except CollectionError:
+            return None  # A missing page, a block or a non-feed reply is just "not here".
+        if not feed.baseline_usable:
+            return None
+        return FeedOption(feed.name, response.url, feed.result, feed.collector_type)
 
     async def validate_selection(self, input_url: str, collection_url: str) -> FeedOption:
         # Registration must re-resolve; a client's earlier discovery response is not authority.
