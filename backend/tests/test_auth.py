@@ -6,6 +6,7 @@ from conftest import login
 from sqlalchemy import text
 
 from levelup.api.app import BINDING, SESSION
+from levelup.core import sections
 from levelup.core.security import digest
 from levelup.infra.db import ensure_owner
 from levelup.migrate import migrate
@@ -28,6 +29,8 @@ def test_owner_login_database_session_and_private_home(auth, db):
     assert all(c["path"] is None for c in home["homeCards"][1:])
     assert home["tech"]["count"] is None
     assert "reports" in [s["id"] for s in home["sections"]]
+    assert "reports" not in [c["id"] for c in home["homeCards"]]
+    assert session.json()["data"]["sections"] == home["sections"]
     with db.connect() as conn:
         row = conn.execute(text("SELECT * FROM auth_sessions")).mappings().one()
         assert row["token_hash"] == digest(client.cookies[SESSION])
@@ -38,6 +41,26 @@ def test_owner_login_database_session_and_private_home(auth, db):
         assert (
             conn.execute(text("SELECT notifications_enabled FROM owner_settings")).scalar() is False
         )
+
+
+def test_registered_section_reaches_menu_and_home(auth, db, monkeypatch):
+    client, provider, _ = auth
+    monkeypatch.setattr(
+        sections,
+        "SECTIONS",
+        (
+            *sections.SECTIONS,
+            sections.Section("lab", "실험 섹션", "/lab", "available", on_home=True),
+        ),
+    )
+    login(client, provider)
+    menu = client.get("/api/v1/session").json()["data"]["sections"]
+    home = client.get("/api/v1/home").json()["data"]
+    assert {"id": "lab", "label": "실험 섹션", "path": "/lab"} in menu
+    assert home["sections"] == menu
+    lab = next(c for c in home["homeCards"] if c["id"] == "lab")
+    assert lab["status"] == "ready"
+    assert lab["path"] == "/lab"
 
 
 @pytest.mark.parametrize(

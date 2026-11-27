@@ -14,15 +14,47 @@ const SettingsContext = createContext<{
 }>({ settings: null, error: "", refresh: async () => {} });
 export const useSession = () => useContext(SessionContext);
 export const useSettings = () => useContext(SettingsContext);
-const navigation: { path: string; label: string; icon: IconName }[] = [
-  { path: "/", label: "홈", icon: "home" },
-  { path: "/tech", label: "기술블로그", icon: "newspaper" },
-  { path: "/tech/saved", label: "저장한 글", icon: "bookmark" },
-  { path: "/tech/subscriptions", label: "구독 설정", icon: "rss" },
-  { path: "/tech/status", label: "수집·발송 상태", icon: "clock" },
-  { path: "/reports", label: "리포트 분석", icon: "report" },
-  { path: "/settings", label: "설정", icon: "settings" },
-];
+type NavItem = { path: string; label: string; icon: IconName; parent?: string };
+const sectionMenu: Record<string, { icon: IconName; children?: NavItem[] }> = {
+  tech: {
+    icon: "newspaper",
+    children: [
+      {
+        path: "/tech/saved",
+        label: "저장한 글",
+        icon: "bookmark",
+        parent: "/tech",
+      },
+      {
+        path: "/tech/subscriptions",
+        label: "구독 설정",
+        icon: "rss",
+        parent: "/tech",
+      },
+      {
+        path: "/tech/status",
+        label: "수집·발송 상태",
+        icon: "clock",
+        parent: "/tech",
+      },
+    ],
+  },
+  reports: { icon: "report" },
+};
+function menuItems(sections: Session["sections"]): NavItem[] {
+  return [
+    { path: "/", label: "홈", icon: "home" },
+    ...sections.flatMap((section) => [
+      {
+        path: section.path,
+        label: section.label,
+        icon: sectionMenu[section.id]?.icon ?? "newspaper",
+      },
+      ...(sectionMenu[section.id]?.children ?? []),
+    ]),
+    { path: "/settings", label: "설정", icon: "settings" },
+  ];
+}
 export function GmailBadge({ settings }: { settings: Settings | null }) {
   const { error } = useSettings();
   const connected = settings?.gmail.state === "connected";
@@ -55,6 +87,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const drawer = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const login = pathname === "/login" || pathname === "/privacy";
+  const navigation = current ? menuItems(current.sections) : [];
   async function refreshSettings() {
     const value = await api<Settings>("/api/v1/settings");
     setSettings(value);
@@ -136,10 +169,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return (
       <nav aria-label="주 메뉴">
         {navigation
-          .filter(
-            (item) =>
-              !item.path.startsWith("/tech/") || pathname.startsWith("/tech"),
-          )
+          .filter((item) => !item.parent || pathname.startsWith(item.parent))
           .map((item) => (
             <Link
               key={item.path}
