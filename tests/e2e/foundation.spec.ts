@@ -153,6 +153,10 @@ for (const theme of ["dark", "light"] as const) {
       page.getByRole("heading", { name: "개인 사이트에 로그인" }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: /로 전환/ })).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "프로젝트 소개 보기 (GitHub README)" }),
+    ).toHaveAttribute("href", "https://github.com/miji0/levelup-vibe#readme");
+    await expect(page.getByText("공개 가입과 비밀번호 재설정")).toHaveCount(0);
     expect((await page.locator(".login-panel").boundingBox())?.width).toBe(
       info.project.name === "mobile-webkit" ? 350 : 420,
     );

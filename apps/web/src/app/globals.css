@@ -697,6 +697,17 @@ html[data-theme="light"] .radio-options input:checked {
 .google-button {
   box-shadow: 0 6px 18px #9333ea59;
 }
+.login-repo-link {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 18px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.login-repo-link:hover {
+  color: var(--body);
+}
 .error-callout {
   display: flex;
   align-items: flex-start;
