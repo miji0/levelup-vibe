@@ -1,4 +1,5 @@
 import { Brand, GoogleIcon, Icon } from "@/core/icon";
+const PROJECT_README_URL = "https://github.com/miji0/levelup-vibe#readme";
 const errors: Record<string, { title: string; message: string }> = {
   OWNER_ONLY: {
     title: "소유자 계정만 이용할 수 있습니다",
@@ -61,13 +62,14 @@ export default async function LoginPage({
           <GoogleIcon />
           {problem ? "다른 Google 계정으로 로그인" : "Google로 로그인"}
         </a>
-        <p className="caption">
-          처음 로그인할 때 같은 계정의 Gmail 발송 권한을 함께 요청합니다.
-          받은편지함은 읽지 않습니다.
-        </p>
-        <p className="caption">
-          공개 가입과 비밀번호 재설정은 제공하지 않습니다.
-        </p>
+        <a
+          className="login-repo-link"
+          href={PROJECT_README_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          프로젝트 소개 보기 (GitHub README)
+        </a>
       </section>
     </main>
   );
