@@ -68,7 +68,10 @@ def translate(error: CollectionError) -> ApiError:
         "VERSION_CONFLICT": "다른 작업에서 변경되었습니다. 새로고침 후 다시 시도해주세요.",
         "PRIVATE_URL": "공개된 웹사이트나 RSS·Atom 주소를 입력해주세요.",
         "RESOURCE_BUSY": "다른 작업을 처리 중입니다. 잠시 후 다시 시도해주세요.",
-        "UNSUPPORTED_SOURCE": "지원하는 피드를 찾지 못했습니다. RSS·Atom 주소를 입력해주세요.",
+        "UNSUPPORTED_SOURCE": (
+            "이 사이트에서 RSS·Atom 피드를 찾지 못했습니다. "
+            "사이트가 RSS를 제공하지 않을 수 있습니다. RSS·Atom 주소를 직접 입력해주세요."
+        ),
     }.get(code, "요청을 완료하지 못했습니다. 입력과 연결 상태를 확인해주세요.")
     fields = (
         {"existingSourceId": str(error.existing_source_id)}

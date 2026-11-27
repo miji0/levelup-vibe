@@ -1,13 +1,22 @@
+import asyncio
 from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from levelup.api.tech import translate
 from levelup.infra.public_http import CollectionError, PublicResponse
+from levelup.modules.tech import collection
 from levelup.modules.tech.collection import CollectionCore, FeedContract
 from levelup.modules.tech.eligibility import Eligibility, compute_eligibility, match_article
-from levelup.modules.tech.feeds import discover_feeds, parse_feed, parse_publication
+from levelup.modules.tech.feeds import (
+    MAX_PROBES,
+    discover_feeds,
+    parse_feed,
+    parse_publication,
+    probe_candidates,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "collection"
 URL = "https://blog.example/feed.xml"
@@ -194,6 +203,8 @@ class FixtureHTTP:
 
     async def fetch(self, url, **kwargs):
         self.calls.append((url, kwargs))
+        if url not in self.pages:
+            raise CollectionError("HTTP_ERROR")  # what the real client does for a 404
         return self.pages[url]
 
 
@@ -273,3 +284,170 @@ async def test_unsupported_html_never_claims_a_collector_exists():
     )
     with pytest.raises(CollectionError, match="UNSUPPORTED_SOURCE"):
         await core.resolve(URL)
+
+
+# --- Feed discovery fallback: pages that advertise no feed -------------------------------------
+
+PAGE = "https://blog.example/insight/trends"
+FEED = "https://blog.example/feed"
+
+
+def html_page(url=PAGE, body=b"<html><head></head><body>no feed here</body></html>"):
+    return PublicResponse(url, 200, body, "text/html")
+
+
+def feed_page(url):
+    return PublicResponse(url, 200, (FIXTURES / "rss.xml").read_bytes(), "text/xml")
+
+
+def probe_core(pages, http=None):
+    return CollectionCore(http or FixtureHTTP(pages), FeedContract(10, 2))
+
+
+def test_probe_candidates_are_same_origin_ordered_and_bounded():
+    found = probe_candidates("https://blog.example/insight/trends/")
+    assert found[0] == "https://blog.example/feed"
+    assert "https://blog.example/ko/feed" in found
+    assert found[-3:] == (
+        "https://blog.example/insight/trends/feed",
+        "https://blog.example/insight/trends/rss",
+        "https://blog.example/insight/trends/feed.xml",
+    )
+    assert len(found) <= MAX_PROBES
+    assert all(url.startswith("https://blog.example/") for url in found)
+    assert probe_candidates("https://blog.example/")[-1] == "https://blog.example/ko/rss"
+    assert "https://blog.example/feed" not in probe_candidates("https://blog.example/feed")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "feed_url",
+    [
+        "https://blog.example/feed",
+        "https://blog.example/rss.xml",
+        "https://blog.example/ko/feed",
+        "https://blog.example/insight/trends/feed",
+    ],
+)
+async def test_page_without_advertised_feed_finds_common_path(feed_url):
+    resolution = await probe_core({PAGE: html_page(), feed_url: feed_page(feed_url)}).resolve(PAGE)
+    assert [option.collection_url for option in resolution.options] == [feed_url]
+    assert not resolution.requires_selection
+
+
+@pytest.mark.asyncio
+async def test_first_candidate_in_priority_order_wins_when_several_are_feeds():
+    pages = {
+        PAGE: html_page(),
+        "https://blog.example/rss": feed_page("https://blog.example/rss"),
+        FEED: feed_page(FEED),
+    }
+    resolution = await probe_core(pages).resolve(PAGE)
+    assert [option.collection_url for option in resolution.options] == [FEED]
+
+
+@pytest.mark.asyncio
+async def test_soft_404_html_replies_are_not_feeds():
+    pages = {PAGE: html_page(), FEED: html_page(FEED, b"<html>not found</html>")}
+    pages["https://blog.example/rss.xml"] = feed_page("https://blog.example/rss.xml")
+    resolution = await probe_core(pages).resolve(PAGE)
+    assert [option.collection_url for option in resolution.options] == [
+        "https://blog.example/rss.xml"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_nothing_found_is_unsupported_and_probing_is_bounded():
+    http = FixtureHTTP({PAGE: html_page()})
+    with pytest.raises(CollectionError, match="UNSUPPORTED_SOURCE"):
+        await probe_core(None, http).resolve(PAGE)
+    assert len(http.calls) <= 1 + MAX_PROBES
+    assert all(url.startswith("https://blog.example/") for url, _ in http.calls)
+
+
+@pytest.mark.asyncio
+async def test_advertised_feed_means_no_guessing():
+    http = FixtureHTTP(
+        {
+            PAGE: html_page(body=(FIXTURES / "discovery.html").read_bytes()),
+            "https://blog.example/feeds/rss.xml": feed_page("https://blog.example/feeds/rss.xml"),
+            "https://blog.example/feeds/atom.xml": PublicResponse(
+                "https://blog.example/feeds/atom.xml",
+                200,
+                (FIXTURES / "atom.xml").read_bytes(),
+                "text/xml",
+            ),
+        }
+    )
+    await probe_core(None, http).resolve(PAGE)
+    assert FEED not in [url for url, _ in http.calls]
+
+
+@pytest.mark.asyncio
+async def test_known_feed_lead_is_used_only_when_it_really_is_a_feed():
+    page = "https://d2.naver.com/helloworld"
+    lead = "https://d2.naver.com/d2.atom"
+    atom = PublicResponse(lead, 200, (FIXTURES / "atom.xml").read_bytes(), "text/xml")
+    resolution = await probe_core({page: html_page(page), lead: atom}).resolve(page)
+    assert [option.collection_url for option in resolution.options] == [lead]
+    with pytest.raises(CollectionError, match="UNSUPPORTED_SOURCE"):
+        await probe_core({page: html_page(page), lead: html_page(lead)}).resolve(page)
+
+
+@pytest.mark.asyncio
+async def test_blocked_or_private_candidate_does_not_stop_the_others():
+    class Picky(FixtureHTTP):
+        async def fetch(self, url, **kwargs):
+            if url == FEED:
+                raise CollectionError("PRIVATE_URL")
+            return await super().fetch(url, **kwargs)
+
+    rss_url = "https://blog.example/rss"
+    http = Picky({PAGE: html_page(), rss_url: feed_page(rss_url)})
+    resolution = await probe_core(None, http).resolve(PAGE)
+    assert [option.collection_url for option in resolution.options] == [rss_url]
+
+
+@pytest.mark.asyncio
+async def test_slow_candidates_are_dropped_after_the_time_budget(monkeypatch):
+    monkeypatch.setattr(collection, "PROBE_BUDGET", 0.05)
+    rss_url = "https://blog.example/rss"
+
+    class Slow(FixtureHTTP):
+        async def fetch(self, url, **kwargs):
+            if url == FEED:
+                await asyncio.sleep(5)
+            return await super().fetch(url, **kwargs)
+
+    both = Slow({PAGE: html_page(), FEED: feed_page(FEED), rss_url: feed_page(rss_url)})
+    resolution = await probe_core(None, both).resolve(PAGE)
+    assert [option.collection_url for option in resolution.options] == [rss_url]
+    only_slow = Slow({PAGE: html_page(), FEED: feed_page(FEED)})
+    with pytest.raises(CollectionError, match="UNSUPPORTED_SOURCE"):
+        await probe_core(None, only_slow).resolve(PAGE)
+
+
+@pytest.mark.asyncio
+async def test_registration_revalidates_a_guessed_feed():
+    core = probe_core({PAGE: html_page(), FEED: feed_page(FEED)})
+    option = await core.validate_selection(PAGE, FEED)
+    assert option.collection_url == FEED
+    with pytest.raises(CollectionError, match="INVALID_SELECTION"):
+        await core.validate_selection(PAGE, "https://blog.example/other")
+
+
+def test_unsupported_source_message_explains_the_likely_cause():
+    error = translate(CollectionError("UNSUPPORTED_SOURCE"))
+    assert error.status == 422 and error.code == "UNSUPPORTED_SOURCE"
+    assert "제공하지 않을 수 있습니다" in error.message and "직접 입력" in error.message
+
+
+@pytest.mark.asyncio
+async def test_advertised_link_that_is_not_a_feed_falls_back_to_guessing():
+    # e.g. an alternate link that points back at the HTML page itself
+    link = b'<html><head><link rel="alternate" type="application/rss+xml" href="/insight/trends">'
+    pages = {PAGE: html_page(body=link + b"</head></html>"), FEED: feed_page(FEED)}
+    resolution = await probe_core(pages).resolve(PAGE)
+    assert [option.collection_url for option in resolution.options] == [FEED]
+    with pytest.raises(CollectionError, match="INVALID_FEED"):
+        await probe_core({PAGE: html_page(body=link + b"</head></html>")}).resolve(PAGE)

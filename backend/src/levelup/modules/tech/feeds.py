@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from typing import Literal
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from xml.etree import ElementTree as ET
 from zoneinfo import ZoneInfo
 
@@ -283,3 +283,33 @@ def discover_feeds(body: bytes, url: str, *, max_candidates: int) -> tuple[str, 
     if len(candidates) > max_candidates:
         raise CollectionError("CANDIDATE_LIMIT")
     return candidates
+
+
+# Fallback when a page advertises no feed. Order is priority: the first valid candidate wins.
+COMMON_FEED_PATHS = (
+    "/feed",
+    "/feed/",
+    "/rss",
+    "/rss.xml",
+    "/atom.xml",
+    "/feed.xml",
+    "/index.xml",
+    "/ko/feed",
+    "/ko/rss",
+)
+SUBPATH_FEED_NAMES = ("/feed", "/rss", "/feed.xml")
+MAX_PROBES = 12
+
+
+def probe_candidates(url: str) -> tuple[str, ...]:
+    """Same-origin feed guesses for a page without an advertised feed (at most MAX_PROBES)."""
+    url = normalize_url(url)
+    parts = urlsplit(url)
+    root = f"{parts.scheme}://{parts.netloc}"
+    guesses = [root + path for path in COMMON_FEED_PATHS]
+    base = parts.path.rstrip("/")
+    if base:
+        guesses += [root + base + name for name in SUBPATH_FEED_NAMES]
+    unique = dict.fromkeys(normalize_url(guess) for guess in guesses)
+    unique.pop(url, None)
+    return tuple(unique)[:MAX_PROBES]
