@@ -81,3 +81,7 @@ PRs explain behavior, validation, configuration changes, relevant issues, and UI
 ## Security & Configuration
 
 Keep credentials server-side and outside version control; provide placeholder configuration examples. Restrict settings and reading history to the owner account.
+
+## Subagent Coordination
+
+When using subagents for service improvement, follow [.codex/README.md](.codex/README.md) for role definitions, file ownership, delegation, and verification handoffs. The main agent coordinates; use the custom roles in `.codex/agents/` for focused work and keep QA independent of implementation.
